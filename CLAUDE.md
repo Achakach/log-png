@@ -103,7 +103,7 @@ screenshots/              ← output PNG files
 - `test_regex.py` — not a real test, removed
 - `mock_log.txt` — Cisco format, incompatible with parser
 
-### Bug fixes applied this session
+### Bug fixes (resolved)
 - Fixed `_group_segments()`: depth-0 segment after nested block no longer incorrectly appended to the block
 - Fixed filename collisions: removed duplicate overwrite risk
 - Fixed HTML escape anti-pattern: Jinja2 autoescape replaces manual `html.escape()` + reverse unescape

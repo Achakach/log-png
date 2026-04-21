@@ -307,28 +307,9 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                     # Standalone command: "HW-Core-BKK-01 display device.png"
                     filename = f"{safe_device} {safe_first_cmd}.png"
                 else:
-                    # Nested block: "HW-Core-BKK-01 system-view ospf-1 GigabitEthernet0/0/1.png"
-                    # Collect unique sub-view suffixes (e.g. "ospf-1", "GigabitEthernet0/0/1")
-                    seen_suffixes = []
-                    for seg in group:
-                        raw_prompt = seg['prompt_raw']
-                        if _prompt_depth(raw_prompt) >= 2:
-                            dev_name = _extract_device_name(raw_prompt)
-                            inner = raw_prompt[1:-1]  # strip brackets
-                            # Strip status indicators for offset calculation
-                            while inner and inner[0] in ('~', '*'):
-                                inner = inner[1:]
-                            suffix = inner[len(dev_name):]  # e.g. "-ospf-1" or "-GigabitEthernet0/0/1"
-                            if suffix.startswith('-'):
-                                suffix = suffix[1:]  # strip leading dash
-                            if suffix and suffix not in seen_suffixes:
-                                seen_suffixes.append(suffix)
-                    if seen_suffixes:
-                        safe_subs = " ".join(sanitize_filename(s) for s in seen_suffixes)
-                        filename = f"{safe_device} {safe_first_cmd} {safe_subs}.png"
-                    else:
-                        # Only system-view, no sub-views
-                        filename = f"{safe_device} {safe_first_cmd}.png"
+                    # Nested block: "HW-Core-BKK-01 system-view interface GE0_0_1 display this quit quit.png"
+                    safe_cmds = " ".join(sanitize_filename(seg['command']) for seg in group)
+                    filename = f"{safe_device} {safe_cmds}.png"
                 filepath = os.path.join(output_dir, filename)
 
                 await element.screenshot(path=filepath, type='png')

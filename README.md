@@ -33,8 +33,10 @@ logs/*.txt                        process_network_logs.py                      s
 Regex หาทุกบรรทัดที่ขึ้นต้นด้วย Huawei VRP prompt:
 
 ```
-^(<[A-Za-z][\w.\-]*>|\[[A-Za-z][\w.\-/]*\])\s+(.+)$
+^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s+(.+)$
 ```
+
+`~?\*?` รองรับ `~` (unsaved config) และ `*` (alarm/fault) prefix ใน square bracket prompts
 
 แต่ละ match กลายเป็น segment: `{prompt, command, output}`
 "output" คือทุกอย่างระหว่าง prompt ปัจจุบันถึง prompt ถัดไป
@@ -115,7 +117,11 @@ PNG อยู่ในโฟลเดอร์ `screenshots/`
 |--------|--------|----------|
 | `<RouterName>` | User view | `<HW-Core-BKK-01>` |
 | `[RouterName]` | System view | `[HW-Core-BKK-01]` |
+| `[~RouterName]` | System view (unsaved config) | `[~HW-Core-BKK-01]` |
+| `[*RouterName]` | System view (alarm/fault) | `[*HW-Core-BKK-01]` |
 | `[RouterName-subview]` | Sub-view | `[HW-Core-BKK-01-ospf-1]`, `[HW-Core-BKK-01-GigabitEthernet0/0/1]` |
+| `[~RouterName-subview]` | Sub-view (unsaved config) | `[~HW-Core-BKK-01-ospf-1]` |
+| `[*RouterName-subview]` | Sub-view (alarm/fault) | `[*HW-Core-BKK-01-GigabitEthernet0/0/1]` |
 
 ## กฎสำคัญ: หลังจบ nested command ต้องกลับมาที่ user view เสมอ
 

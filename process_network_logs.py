@@ -66,7 +66,7 @@ def _split_into_segments(log_content: str) -> list[dict]:
     # followed by the command text on the rest of that line,
     # then everything up to the next prompt line (or end of input).
     prompt_re = re.compile(
-        r'^(<[A-Za-z][\w.\-]*>|\[[A-Za-z][\w.\-/]*\])\s+(.+)$',
+        r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s+(.+)$',
         re.MULTILINE
     )
 
@@ -107,6 +107,9 @@ def _prompt_depth(prompt: str) -> int:
         return 0
     if prompt.startswith('[') and prompt.endswith(']'):
         inner = prompt[1:-1]
+        # Strip status indicators: ~ (unsaved config), * (alarm/fault)
+        while inner and inner[0] in ('~', '*'):
+            inner = inner[1:]
         device = _extract_device_name(prompt)
         if inner == device:
             return 1  # system view, no sub-view
@@ -238,14 +241,21 @@ def parse_log(log_content: str) -> list[list[dict]]:
 
 def _extract_device_name(prompt: str) -> str:
     """
-    Extract the base device name from a prompt, stripping sub-view suffixes.
+    Extract the base device name from a prompt, stripping sub-view suffixes
+    and the unsaved-config indicator (~).
     e.g. '<HW-Core-BKK-01>' → 'HW-Core-BKK-01'
          '[HW-Core-BKK-01]' → 'HW-Core-BKK-01'
+         '[~HW-Core-BKK-01]' → 'HW-Core-BKK-01'
          '[HW-Core-BKK-01-ospf-1]' → 'HW-Core-BKK-01'
          '[HW-Core-BKK-01-GigabitEthernet0/0/1]' → 'HW-Core-BKK-01'
+         '[~HW-Core-BKK-01]' → 'HW-Core-BKK-01'
+         '[*HW-Core-BKK-01]' → 'HW-Core-BKK-01'
          '[CE-Leaf-01]' → 'CE-Leaf-01'
     """
     inner = prompt[1:-1]  # strip < > or [ ]
+    # Strip status indicators: ~ (unsaved config), * (alarm/fault)
+    while inner and inner[0] in ('~', '*'):
+        inner = inner[1:]
     # Sub-view suffixes always start with a known keyword after the device name
     sub_keywords = ('ospf', 'GigabitEthernet', 'Loopback',
                     'Vlanif', 'bgp', 'isis', 'acl', 'vpn-instance', 'port-group')
@@ -263,7 +273,8 @@ def _extract_device_name(prompt: str) -> str:
 def sanitize_filename(name: str, max_length: int = 200) -> str:
     """Replaces invalid filename characters (but not spaces or hyphens) with underscores.
     Returns 'unnamed' if the result would be empty. Truncates to max_length."""
-    result = re.sub(r'[\\/:*?"<>|]', '_', name)
+    result = re.sub(r'[\\/:*?"<>\n\r\t]', '_', name)
+    result = result.replace('|', ' ')
     if not result.strip():
         return 'unnamed'
     return result[:max_length]
@@ -303,7 +314,13 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                         raw_prompt = seg['prompt_raw']
                         if _prompt_depth(raw_prompt) >= 2:
                             dev_name = _extract_device_name(raw_prompt)
-                            suffix = raw_prompt[len(dev_name)+2:-1]  # e.g. "ospf-1" or "GigabitEthernet0/0/1"
+                            inner = raw_prompt[1:-1]  # strip brackets
+                            # Strip status indicators for offset calculation
+                            while inner and inner[0] in ('~', '*'):
+                                inner = inner[1:]
+                            suffix = inner[len(dev_name):]  # e.g. "-ospf-1" or "-GigabitEthernet0/0/1"
+                            if suffix.startswith('-'):
+                                suffix = suffix[1:]  # strip leading dash
                             if suffix and suffix not in seen_suffixes:
                                 seen_suffixes.append(suffix)
                     if seen_suffixes:

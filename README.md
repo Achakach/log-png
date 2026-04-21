@@ -8,12 +8,91 @@
 
 Converts Huawei VRP CLI log files into terminal-style PNG screenshots for use in documentation, reports, or audits.
 
+## Script Flow
+
+```
+logs/*.txt                        process_network_logs.py                      screenshots/
+┌──────────────┐                  ┌──────────────────────────────┐              ┌─────────────┐
+│ Huawei VRP   │──── 1. Parse ──→ │ _split_into_segments()       │              │             │
+│ CLI log      │                  │   regex match prompts        │              │             │
+│              │                  │   → [{prompt, command,      │              │             │
+│              │                  │       output}]               │              │             │
+│              │                  │                              │              │             │
+│              │──── 2. Group ──→ │ _group_segments()            │              │             │
+│              │                  │   depth-based grouping       │── 3. Render ─→│  PNG files  │
+│              │                  │   → [[group1], [group2], …]  │  + Capture   │             │
+│              │                  │                              │              │             │
+│              │                  │ generate_screenshots()       │              │             │
+│              │                  │   Jinja2 autoescape → HTML   │              │             │
+│              │                  │   Playwright headless → PNG  │              │             │
+└──────────────┘                  └──────────────────────────────┘              └─────────────┘
+```
+
+### ขั้นตอนที่ 1: Parse — `_split_into_segments()`
+
+Regex หาทุกบรรทัดที่ขึ้นต้นด้วย Huawei VRP prompt:
+
+```
+^(<[A-Za-z][\w.\-]*>|\[[A-Za-z][\w.\-/]*\])\s+(.+)$
+```
+
+แต่ละ match กลายเป็น segment: `{prompt, command, output}`
+"output" คือทุกอย่างระหว่าง prompt ปัจจุบันถึง prompt ถัดไป
+
+### ขั้นตอนที่ 2: Group — `_group_segments()`
+
+กำหนด depth ของแต่ละ segment:
+- `<Router>` → depth **0** (user view)
+- `[Router]` → depth **1** (system view)
+- `[Router-subview]` → depth **2+** (sub-view)
+
+จัดกลุ่มตามกฎ:
+
+**กฎ 1 — Standalone** (depth เท่าเดิม ไม่ลึกขึ้น):
+```
+<HW> display device     → 1 PNG เดี่ยว
+<HW> display clock      → 1 PNG เดี่ยว
+```
+
+**กฎ 2 — Nested block** (depth ลึกขึ้น จนกว่าจะกลับ depth 0):
+```
+<HW> system-view           ← เริ่ม block (depth 0→1)
+[HW] interface GE0/0/1      ← อยู่ใน block (depth 1→2)
+[HW-GE0/0/1] display this  ← อยู่ใน block (depth 2)
+[HW-GE0/0/1] quit           ← อยู่ใน block (depth 2→1)
+[HW] quit                    ← อยู่ใน block (depth 1→0)
+<HW> display clock          ← จบ block! → standalone ใหม่
+```
+
+**จุดจบของ block = กลับไป depth 0 (`<Router>`)**
+
+### ขั้นตอนที่ 3: Render + Screenshot — `generate_screenshots()`
+
+แต่ละ group ผ่าน pipeline:
+```
+group → Jinja2 autoescape render → HTML → Playwright set_content → screenshot #capture-area → PNG
+```
+
 ## การติดตั้ง
+
+### Prerequisites
+- **Python 3.10+**
+- **pip** (Python package manager)
+
+### ติดตั้ง dependencies
 
 ```bash
 pip install -r requirements.txt
 playwright install chromium
 ```
+
+### รายการ dependencies
+
+| Package | ใช้สำหรับ | ติดตั้งอัตโนมัติ |
+|---------|----------|------------|
+| `jinja2` | HTML template rendering (autoescape เปิดอยู่) | ผ่าน `pip install -r requirements.txt` |
+| `playwright` | Headless Chromium screenshot capture | ผ่าน `pip install -r requirements.txt` |
+| Chromium browser | Playwright ใช้ render HTML → PNG | ผ่าน `playwright install chromium` (รันทีเดียว) |
 
 ## วิธีใช้
 

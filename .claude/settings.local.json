@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python nested_log_gen.py -f logs/nested_huawei_log.txt)",
+      "Bash(python -c ':*)",
+      "Bash(python run.py)"
+    ]
+  }
+}

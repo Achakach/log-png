@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+screenshots/
+*.png
+logs/
+*.txt
+!CLAUDE.md

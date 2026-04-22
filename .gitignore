@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 screenshots/
 *.png
+*.docx
 logs/
 *.txt
 !CLAUDE.md
+!requirement.txt

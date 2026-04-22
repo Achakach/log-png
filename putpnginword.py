@@ -6,20 +6,17 @@ from docx.shared import Inches
 
 
 # --- Configuration ---
-DOCX_INPUT = r"replaced_document.docx"
-PNG_PATH = r"D:\Documents\True_DTAC_Cloud Core\UAT\GEN Tool\png\*.png"
-DOCX_OUTPUT = "ThaiCo_SW_UAT_Document_RST_DC61_PH21_nonSDN.docx"
+DOCX_INPUT = r"test_document_v2.docx"
+PNG_PATH = r"screenshots\*.png"
+DOCX_OUTPUT = "test_document_v2_with_png.docx"
 
 
 # --- Regex patterns ---
-# Match prompt+command lines: <Router>cmd or [~*Router]cmd or [~*Router-sub]cmd
-PROMPT_RE = re.compile(
-    r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s+(.+)$',
-    re.MULTILINE
-)
+# Match prompt+command: <Router>cmd or [~*Router]cmd or [~*Router-sub]cmd
+PROMPT_LINE_RE = re.compile(r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*(.+)$')
 
-# Match node-only lines: <NodeName> with no command after
-NODE_RE = re.compile(r'^<([A-Za-z][\w.\-]*)>\s*$', re.MULTILINE)
+# Match node-only: <NodeName> with nothing after
+NODE_LINE_RE = re.compile(r'^<([A-Za-z][\w.\-]*)>\s*$')
 
 
 def sanitize_filename(name: str, max_length: int = 200) -> str:
@@ -30,34 +27,46 @@ def sanitize_filename(name: str, max_length: int = 200) -> str:
     return result[:max_length]
 
 
-def parse_cell_commands(cell_text: str) -> list[str]:
-    """Extract commands from all prompt lines in a cell."""
+def parse_paragraphs(paragraphs):
+    """Extract commands and node names from cell paragraphs.
+
+    Returns (commands, nodes) where:
+      commands: list of command strings from prompt lines
+      nodes: list of device names from <NodeName> lines
+    """
     commands = []
-    for match in PROMPT_RE.finditer(cell_text):
-        cmd = match.group(2).strip()
-        commands.append(cmd)
-    return commands
-
-
-def parse_cell_nodes(cell_text: str) -> list[str]:
-    """Extract device names from <NodeName> lines (no command after)."""
-    return [m.group(1) for m in NODE_RE.finditer(cell_text)]
+    nodes = []
+    for para in paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
+        # Check if this line is a node-only: <NodeName> with no command
+        m = NODE_LINE_RE.match(text)
+        if m:
+            nodes.append(m.group(1))
+            continue
+        # Check if this line is a prompt+command
+        m = PROMPT_LINE_RE.match(text)
+        if m:
+            cmd = m.group(2).strip()
+            if cmd:  # Skip empty commands (e.g. prompt-only lines)
+                commands.append(cmd)
+    return commands, nodes
 
 
 def find_best_match(device: str, commands: list[str], png_files: list[str]) -> str | None:
     """Find the PNG that best matches device + commands using prefix matching.
 
-    Token-by-token prefix matching (case-insensitive):
-      cell 'system' matches PNG 'system-view' (prefix)
-      cell 'dis' matches PNG 'display' (prefix)
-      cell 'q' matches PNG 'quit' (prefix)
+    Uses longest initial prefix match to prioritize correct interface numbers.
+    Example: search 'GE0_0_29' matches PNG with 'GE0_0_29' over PNG with 'GE0_0_20'.
     """
     search_tokens = sanitize_filename(device).lower().split()
     for cmd in commands:
         search_tokens.extend(sanitize_filename(cmd).lower().split())
 
     best_match = None
-    best_score = 0
+    best_prefix = 0  # longest consecutive matching tokens from start
+    best_score = 0   # total matching tokens (tiebreaker)
 
     for png_path in png_files:
         png_name = os.path.basename(png_path).replace('.png', '').lower()
@@ -67,14 +76,18 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
         if not png_tokens or png_tokens[0] != search_tokens[0]:
             continue
 
-        # Count prefix-matching tokens
+        # Count total matching tokens AND consecutive matches from start
         score = 0
+        prefix = 0
         for i, st in enumerate(search_tokens):
             if i < len(png_tokens) and png_tokens[i].startswith(st):
                 score += 1
+                if i == prefix:
+                    prefix += 1
 
-        # Require at least 60% of search tokens to match
-        if score > best_score and score >= len(search_tokens) * 0.6:
+        # Prefer: longest initial prefix, then highest total score
+        if prefix > best_prefix or (prefix == best_prefix and score > best_score):
+            best_prefix = prefix
             best_score = score
             best_match = png_path
 
@@ -121,11 +134,11 @@ for table_index, table in enumerate(document.tables):
             if not permit:
                 continue
 
-            # Parse cell
-            commands = parse_cell_commands(cell_text)
-            nodes = parse_cell_nodes(cell_text)
+            # Parse cell paragraphs
+            commands, nodes = parse_paragraphs(cell.paragraphs)
 
             if not commands or not nodes:
+                continue
                 continue
 
             # For each node, find matching PNG and insert

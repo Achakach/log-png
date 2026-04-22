@@ -1,7 +1,8 @@
 import argparse
+import os
 
 
-def generate_nested_huawei_log(filename: str = "nested_huawei_log.txt") -> int:
+def generate_nested_huawei_log(router_name: str = "HW-Core-BKK-01", filename: str = "") -> int:
     """
     Generate a Huawei VRP CLI log for a single NE where every command
     and every nested command set runs exactly once.
@@ -17,7 +18,8 @@ def generate_nested_huawei_log(filename: str = "nested_huawei_log.txt") -> int:
       [Router-ospf-1]             (OSPF view)
       [Router-GigabitEthernet0/0/N] (interface view)
     """
-    router_name = "HW-Core-BKK-01"
+    if not filename:
+        filename = f"{router_name}.txt"
     SYSTEM_VIEW_MSG = "Enter system view, return user view with Ctrl+Z."
 
     lines: list[str] = []
@@ -168,7 +170,18 @@ def generate_nested_huawei_log(filename: str = "nested_huawei_log.txt") -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate mock Huawei VRP nested log file")
-    parser.add_argument("-f", "--filename", default="nested_huawei_log.txt", help="Output filename")
+    DEVICES = [
+        "TUC-TYB91G01HWLEFC303-CPLEF03",
+        "TUC-TYB91G01HWLEFC303-CPLEF04",
+    ]
+    parser = argparse.ArgumentParser(description="Generate mock Huawei VRP nested log file(s)")
+    parser.add_argument("-d", "--devices", nargs="*", default=DEVICES,
+                        help="Device names to generate logs for (default: test devices)")
+    parser.add_argument("-o", "--output-dir", default="logs",
+                        help="Output directory for log files (default: logs/)")
     args = parser.parse_args()
-    generate_nested_huawei_log(filename=args.filename)
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    for device in args.devices:
+        filepath = os.path.join(args.output_dir, f"{device}.txt")
+        generate_nested_huawei_log(router_name=device, filename=filepath)

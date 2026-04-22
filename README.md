@@ -94,6 +94,7 @@ playwright install chromium
 |---------|----------|------------|
 | `jinja2` | HTML template rendering (autoescape เปิดอยู่) | ผ่าน `pip install -r requirements.txt` |
 | `playwright` | Headless Chromium screenshot capture | ผ่าน `pip install -r requirements.txt` |
+| `python-docx` | Word document manipulation (`putpnginword.py`) | ผ่าน `pip install -r requirements.txt` |
 | Chromium browser | Playwright ใช้ render HTML → PNG | ผ่าน `playwright install chromium` (รันทีเดียว) |
 
 ## วิธีใช้
@@ -176,7 +177,9 @@ Script ใช้ depth เพื่อจัดกลุ่มคำสั่ง
 | ประเภท | รูปแบบ | ตัวอย่าง |
 |--------|--------|----------|
 | Standalone | `{device} {command}.png` | `HW-Core-BKK-01 display device.png` |
-| Nested block | `{device} {entry-cmd} {sub-views}.png` | `HW-Core-BKK-01 system-view ospf-1 GigabitEthernet0/0/1.png` |
+| Nested block | `{device} {cmd1} {cmd2} ... .png` | `HW-Core-BKK-01 system-view interface GigabitEthernet0_0_29 display this shutdown quit quit.png` |
+
+หมายเหตุ: Nested block จะต่อคำสั่งทั้งหมดเข้าด้วยกัน (`/` ในชื่อ interface จะถูกแทนที่ด้วย `_`)
 
 ## สร้าง log file ตัวอย่าง
 
@@ -185,3 +188,47 @@ python nested_log_gen.py
 ```
 
 สร้าง `nested_huawei_log.txt` ที่มีคำสั่งครบทุกอย่าง อย่างละครั้ง
+
+## แทรก PNG ลง Word (`putpnginword.py`)
+
+แทรก PNG screenshot ลงในเอกสาร Word .docx โดยจับคู่คำสั่งในตารางกับชื่อไฟล์ PNG
+
+### วิธีใช้
+```bash
+python putpnginword.py
+```
+
+ตั้งค่า path ที่ด้านบนของ script:
+```python
+DOCX_INPUT = r"replaced_document.docx"      # ไฟล์ Word ต้นทาง
+PNG_PATH = r"path\to\png\*.png"             # path ของ PNG files
+DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
+```
+
+### วิธีการทำงาน
+
+1. **อ่านตาราง** ใน Word document → แต่ละ cell หา prompt+command lines และ node names
+2. **จับคู่** ชื่อไฟล์ PNG ด้วย word-by-word prefix matching (case-insensitive)
+   - รองรับคำสั่งย่อ: `system`→`system-view`, `dis`→`display`, `q`→`quit`
+   - ต้องผ่าน 60% threshold ของ search tokens
+3. **แทรกรูป** ลงที่ `<NodeName>` paragraph ใน cell (กว้าง 6.495 นิ้ว)
+
+### รูปแบบ Cell ที่รองรับ
+
+**Single command:**
+```
+<HUAWEI>display device
+<TUC-TYB91G01HWLEFC303-CPLEF03>    ← แทรกรูปตรงนี้
+```
+
+**Nested command:**
+```
+<HUAWEI>system-view
+[~HUAWEI]interface GigabitEthernet0/0/29
+[~HUAWEI-GE0/0/29]display this
+[~HUAWEI-GE0/0/29]quit
+[~HUAWEI]quit
+<TUC-TYB91G01HWLEFC303-CPLEF03>    ← แทรกรูปตรงนี้
+```
+
+**หมายเหตุ:** Prompt (`<HUAWEI>`, `[~HUAWEI]`, `[~HUAWEI-GE0/0/29]`) ไม่มีผลต่อการ match — ดึงเฉพาะส่วน command

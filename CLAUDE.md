@@ -4,7 +4,7 @@
 Tool that converts Huawei VRP CLI session logs into terminal-style PNG screenshots. Parses raw log text, groups commands by prompt depth, renders HTML, and captures screenshots via Playwright (headless Chromium).
 
 ## Architecture
-Pipeline: **Log Generation** → **Parse & Group** → **Screenshot**
+Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Insert into Word**
 
 ### Core Engine (`process_network_logs.py`)
 - `_split_into_segments()` — Regex parser, splits raw log into `{prompt, command, output}` segments. Recognizes Huawei VRP prompts: `<Router>` (user view), `[Router]`/`[~Router]`/`[*Router]` (system view), `[Router-subview]`/`[~Router-subview]`/`[*Router-subview]` (sub-view). The `~` prefix = unsaved config changes, `*` prefix = alarm/fault state
@@ -12,9 +12,17 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot**
 - `_extract_device_name()` — Strips `~` and `*` prefixes, then sub-view suffixes from prompt using keyword list. Requires `idx > 2` to avoid false matches on short device names
 - `_group_segments()` — Depth-based grouping: standalone commands get own PNG, nested blocks (system-view + sub-views) become one PNG. Depth-0 segments after nested blocks fall through as standalone
 - `_finalize_group()` — Adds `prompt_raw` and `router` (sanitized filename) fields. HTML escaping is handled by Jinja2 autoescape, NOT here
-- `generate_screenshots()` — Async Playwright renderer with Jinja2 autoescape. Viewport 1200x900
+- `generate_screenshots()` — Async Playwright renderer with Jinja2 autoescape. Viewport 1200x900. **Nested block filenames concatenate all commands**: `{device} {cmd1} {cmd2} ... .png`
 - `process_network_logs()` — Sync entry point. Detects existing event loop and uses ThreadPoolExecutor if needed (Jupyter compatibility)
-- `sanitize_filename()` — Strips only OS-invalid chars (`\/:*?"<>|`), preserves spaces and hyphens. `|` replaced with space. `~` and `*` are valid in Windows filenames but are stripped during device name extraction before filename construction. Fallback `'unnamed'` for empty input, `max_length=200`
+- `sanitize_filename()` — Strips only OS-invalid chars (`\/:*?"<>|`), preserves spaces and hyphens. `|` replaced with space. `/` replaced with `_` (e.g. `GigabitEthernet0/0/1` → `GigabitEthernet0_0_1`). Fallback `'unnamed'` for empty input, `max_length=200`
+
+### Word Inserter (`putpnginword.py`)
+- `parse_cell_commands()` — Extracts commands from all prompt lines in a Word table cell (both `<Router>cmd` and `[Router]cmd` formats)
+- `parse_cell_nodes()` — Extracts device names from `<NodeName>` lines (no command after)
+- `find_best_match()` — Matches cell commands to PNG filenames using word-by-word prefix matching (case-insensitive). Supports abbreviated commands (`system`→`system-view`, `dis`→`display`, `q`→`quit`). Requires 60% token match threshold and exact device name match
+- `sanitize_filename()` — Same logic as `process_network_logs.py` for consistent filename handling
+- Main loop: iterates Word tables, parses cells, finds matching PNGs, inserts images at `<NodeName>` paragraphs
+- `PERMIT_FALSE_KEYWORDS` / `PERMIT_TRUE_KEYWORDS` — configurable constants to control which test cases get images
 
 ### Sub-view Keywords (used in `_extract_device_name` and `_prompt_depth`)
 `ospf`, `GigabitEthernet`, `Loopback`, `Vlanif`, `bgp`, `isis`, `acl`, `vpn-instance`, `port-group`
@@ -26,15 +34,18 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot**
 ### Entry Points
 - `run.py` — Reads all `.txt` from `logs/`, outputs PNGs to `screenshots/`
 - `process_network_logs.py __main__` — CLI with file/directory argument
+- `putpnginword.py` — Inserts PNGs into Word .docx UAT document (reads PNGs from folder, matches by device+command, saves new .docx)
 
 ## Dependencies
 - `jinja2` — HTML template rendering (with autoescape enabled)
 - `playwright` — Headless Chromium for screenshot capture
+- `python-docx` — Word document manipulation (for `putpnginword.py`)
 - Install: `pip install -r requirements.txt && playwright install chromium`
 
 ## Filename Format
 - Standalone: `HW-Core-BKK-01 display device.png`
-- Nested with sub-views: `HW-Core-BKK-01 system-view ospf-1 GigabitEthernet0/0/1.png`
+- Nested: `HW-Core-BKK-01 system-view interface GigabitEthernet0_0_1 display this quit quit.png` (all commands concatenated)
+- `/` in interface names replaced with `_` by `sanitize_filename()`
 - No index suffix — each command appears only once in production logs
 
 ## Rules and Conventions
@@ -81,17 +92,22 @@ No randomness — every command runs exactly once, in a fixed order. No `target_
 - Nested blocks are bounded by returns to `<Router>` (depth 0): each `system-view` through `quit` back to user-view = one PNG
 - Log files must start with `<Router>` (depth 0) prompts — logs starting directly at `[Router]` (depth 1) are not supported
 - `~` prefix in prompts (e.g. `[~RouterName]`) indicates unsaved config changes. `*` prefix (e.g. `[*RouterName]`) indicates alarm/fault state. Regex matches `~?\*?` after `[`, `_prompt_depth()` and `_extract_device_name()` strip these prefixes before processing. They are displayed in screenshots but never appear in filenames
+- Nested block PNG filenames concatenate ALL commands (including `quit`), not just entry command + sub-view suffixes
+- `putpnginword.py` uses word-by-word prefix matching — prompt text in Word cells is ignored, only the command portion is extracted and matched against PNG filenames
+- `putpnginword.py` paths (`DOCX_INPUT`, `PNG_PATH`, `DOCX_OUTPUT`) and permit keywords are hardcoded constants at the top of the file — adjust per document
 
 ## Current Project State (2026-04-21)
 
 ### Files
 ```
 process_network_logs.py   ← core engine (parse, group, screenshot)
+putpnginword.py           ← inserts PNGs into Word .docx (prefix matching)
 run.py                    ← main entry point (reads logs/ → writes screenshots/)
 nested_log_gen.py         ← generates mock log (single NE, deterministic)
-requirements.txt          ← jinja2, playwright
+example.txt               ← example of Word table cell format (single + nested)
+requirements.txt          ← jinja2, playwright, python-docx
 .gitignore                ← __pycache__, *.pyc, screenshots/, *.png
-README.md                 ← usage docs + mandatory rule about returning to user view
+README.md                 ← usage docs
 CLAUDE.md                 ← this file
 logs/                     ← input log files (.txt)
 screenshots/              ← output PNG files
@@ -116,6 +132,8 @@ screenshots/              ← output PNG files
 - Fixed directory scan to filter out subdirectories
 - Added support for `~` and `*` prefixes in prompts (`[~RouterName]` = unsaved config, `[*RouterName]` = alarm/fault): regex now matches `~?\*?`, `_prompt_depth()` and `_extract_device_name()` strip these prefixes before processing
 - Fixed `sanitize_filename()`: `|` (pipe) replaced with space instead of underscore
+- Changed nested block PNG naming: from `{device} {first-cmd} {sub-view-suffixes}.png` to concatenating all commands `{device} {cmd1} {cmd2} ... .png`
+- Added `putpnginword.py`: inserts PNGs into Word .docx using word-by-word prefix matching (supports abbreviated commands)
 
 ## Known Limitations
 - Only supports Huawei VRP format (`<Router>` / `[Router]` prompts). Cisco IOS is NOT supported

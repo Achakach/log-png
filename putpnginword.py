@@ -121,11 +121,12 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
             best_match = png_path
             break
 
+        # Check if cell commands match the START of PNG commands (after device)
+        # This prevents standalone commands from matching nested block PNGs
         found = False
-        for i in range(1, len(png_tokens) - len(cmd_tokens) + 1):
-            if png_tokens[i:i + len(cmd_tokens)] == cmd_tokens:
+        if len(png_tokens) >= 1 + len(cmd_tokens):
+            if png_tokens[1:1 + len(cmd_tokens)] == cmd_tokens:
                 found = True
-                break
 
         if found:
             # Prefer shorter filenames (fewer extra commands) on tie

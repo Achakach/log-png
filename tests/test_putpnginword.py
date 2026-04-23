@@ -102,6 +102,19 @@ def test_find_best_match_no_false_positive():
     assert result is None
 
 
+def test_find_best_match_standalone_vs_nested():
+    """Standalone command should not match nested block PNG starting with different command."""
+    png_files = [
+        'HW-Core-BKK-01 system-view display current-configuration display ip routing-table quit.png',
+        'HW-Core-BKK-01 display current-configuration.png',
+    ]
+    # Cell with just "display current-configuration" should match standalone PNG only
+    result = find_best_match('HW-Core-BKK-01', ['display', 'current-configuration'], png_files)
+    assert result is not None
+    assert 'display current-configuration.png' in result
+    assert 'system-view' not in result
+
+
 def test_find_best_match_missing_quit():
     """Cell omits quit commands — should still match."""
     png_files = [

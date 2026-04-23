@@ -94,6 +94,10 @@ def test_expand_q():
     assert expand_abbreviations(['q']) == ['quit']
 
 
+def test_expand_comm():
+    assert expand_abbreviations(['comm']) == ['commit']
+
+
 def test_expand_multiple():
     assert expand_abbreviations(['system', 'dis', 'q']) == [
         'system-view',

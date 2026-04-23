@@ -27,6 +27,34 @@ def sanitize_filename(name: str, max_length: int = 200) -> str:
     return result[:max_length]
 
 
+# --- Abbreviation Expansion ---
+
+# Longest-first to avoid partial expansion (e.g. 'dis th' before 'dis')
+_ABBREVIATIONS = [
+    ('dis th', 'display this'),
+    ('dis', 'display'),
+    ('system', 'system-view'),
+    ('q', 'quit'),
+]
+
+
+def expand_abbreviations(commands: list[str]) -> list[str]:
+    """Expand Huawei CLI abbreviations in commands.
+
+    Uses longest-match-first to avoid partial expansion.
+    Example: 'dis th' -> 'display this', not 'display th'.
+    """
+    result = []
+    for cmd in commands:
+        expanded = cmd
+        for abbrev, full in _ABBREVIATIONS:
+            # Match as whole words (or start of string) to avoid mid-word replacement
+            pattern = re.compile(r'^(\s*)' + re.escape(abbrev) + r'(\s|$)')
+            expanded = pattern.sub(r'\1' + full + r'\2', expanded)
+        result.append(expanded)
+    return result
+
+
 def parse_paragraphs(paragraphs):
     """Extract commands and node names from cell paragraphs.
 

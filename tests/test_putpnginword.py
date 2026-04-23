@@ -94,7 +94,17 @@ def test_find_best_match_exact_subsequence():
     assert 'cmd2 cmd3' in result
 
 
+def test_find_best_match_standalone_system_view_no_nested_match():
+    """Cell with just 'system-view' should not match nested block PNG."""
+    png_files = [
+        'HW-Core-BKK-01 system-view interface GigabitEthernet0_0_1 display this quit quit.png',
+    ]
+    result = find_best_match('HW-Core-BKK-01', ['system-view'], png_files)
+    assert result is None
+
+
 def test_find_best_match_no_false_positive():
+    """Cell commands not present in PNG should not match."""
     png_files = [
         'HW-Core-BKK-01 system-view display current-configuration quit.png',
     ]

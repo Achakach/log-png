@@ -91,18 +91,34 @@ def parse_paragraphs(paragraphs):
 
 
 def find_best_match(device: str, commands: list[str], png_files: list[str]) -> str | None:
-    """Find the PNG whose filename contains the exact command sequence as a contiguous subsequence.
+    """Find the PNG whose filename matches the exact command sequence.
 
     The device name must match exactly (case-insensitive).
-    All commands must appear consecutively and in order within the PNG filename tokens.
-    Missing trailing tokens (e.g. quit) in the cell are allowed.
+    Trailing 'quit' tokens are stripped from both cell commands and PNG filename
+    before comparison, so cells with or without quit match correctly.
+    The remaining command sequence must match exactly (same tokens, same order).
     """
     if not commands:
         return None
 
+    # Build search tokens from device + commands
     search_tokens = sanitize_filename(device).lower().split()
     for cmd in commands:
         search_tokens.extend(sanitize_filename(cmd).lower().split())
+
+    # Strip trailing 'quit' from search tokens (cell side)
+    while len(search_tokens) > 1 and search_tokens[-1] == 'quit':
+        search_tokens.pop()
+
+    cmd_tokens = search_tokens[1:]  # Skip device name
+    if not cmd_tokens:
+        # Device-only match
+        for png_path in png_files:
+            png_name = os.path.basename(png_path).replace('.png', '').lower()
+            png_tokens = png_name.split()
+            if png_tokens and png_tokens[0] == search_tokens[0]:
+                return png_path
+        return None
 
     best_match = None
 
@@ -114,23 +130,14 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
         if not png_tokens or png_tokens[0] != search_tokens[0]:
             continue
 
-        # Find contiguous subsequence of command tokens within PNG tokens
-        # search_tokens[1:] = command tokens only (skip device)
-        cmd_tokens = search_tokens[1:]
-        if not cmd_tokens:
-            # Device-only match (rare, but handle it)
-            best_match = png_path
-            break
+        # Strip trailing 'quit' from PNG tokens (PNG side)
+        png_cmd_tokens = png_tokens[1:]
+        while png_cmd_tokens and png_cmd_tokens[-1] == 'quit':
+            png_cmd_tokens.pop()
 
-        # Check if cell commands match the START of PNG commands (after device)
-        # This prevents standalone commands from matching nested block PNGs
-        found = False
-        if len(png_tokens) >= 1 + len(cmd_tokens):
-            if png_tokens[1:1 + len(cmd_tokens)] == cmd_tokens:
-                found = True
-
-        if found:
-            # Prefer shorter filenames (fewer extra commands) on tie
+        # Exact match required
+        if png_cmd_tokens == cmd_tokens:
+            # Prefer shorter filenames on tie (fewer extra commands)
             if best_match is None or len(png_tokens) < len(os.path.basename(best_match).replace('.png', '').lower().split()):
                 best_match = png_path
 

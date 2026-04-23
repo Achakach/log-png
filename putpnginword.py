@@ -57,37 +57,61 @@ def expand_abbreviations(commands: list[str]) -> list[str]:
 
 
 def parse_paragraphs(paragraphs):
-    """Extract commands and node names from cell paragraphs.
+    """Extract command blocks and node names from cell paragraphs.
 
-    Returns (commands, nodes) where:
-      commands: list of command strings from prompt lines
-      nodes: list of device names from <NodeName> lines
+    Splits commands into separate blocks when a standalone user-view
+    command (<Router>cmd) is encountered after a nested block has started.
+
+    Returns list of (commands, nodes) tuples, one per logical block.
     """
-    commands = []
+    blocks = []
+    current_commands = []
     nodes = []
+
     # Match prompt-only lines like [Router] or <Router> with no command
     PROMPT_ONLY_RE = re.compile(
         r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*$'
     )
+
     for para in paragraphs:
         text = para.text.strip()
         if not text:
             continue
+
         # Check if this line is a node-only: <NodeName> with no command
         m = NODE_LINE_RE.match(text)
         if m:
             nodes.append(m.group(1))
             continue
+
         # Skip prompt-only lines (no command after prompt)
         if PROMPT_ONLY_RE.match(text):
             continue
+
         # Check if this line is a prompt+command
         m = PROMPT_LINE_RE.match(text)
         if m:
             cmd = m.group(2).strip()
-            if cmd:
-                commands.append(cmd)
-    return commands, nodes
+            prompt = m.group(1)
+            if not cmd:
+                continue
+
+            # Detect standalone user-view command: <Router>cmd (depth 0)
+            # If we already have commands in current block, this starts a new block
+            if (prompt.startswith('<') and
+                    not prompt.startswith('<~') and
+                    not prompt.startswith('<*') and
+                    current_commands):
+                blocks.append((current_commands, nodes))
+                current_commands = []
+                nodes = []
+
+            current_commands.append(cmd)
+
+    if current_commands:
+        blocks.append((current_commands, nodes))
+
+    return blocks
 
 
 def find_best_match(device: str, commands: list[str], png_files: list[str]) -> str | None:
@@ -185,46 +209,56 @@ if __name__ == "__main__":
                 if not permit:
                     continue
 
-                # Parse cell paragraphs
-                commands, nodes = parse_paragraphs(cell.paragraphs)
+                # Parse cell paragraphs into command blocks
+                blocks = parse_paragraphs(cell.paragraphs)
 
-                if not commands or not nodes:
+                # Collect all nodes from all blocks for deduplication
+                all_nodes = set()
+                for _, block_nodes in blocks:
+                    all_nodes.update(block_nodes)
+
+                if not blocks or not all_nodes:
                     continue
-
-                # Expand abbreviations before matching
-                expanded_commands = expand_abbreviations(commands)
 
                 # Track inserted nodes per cell to prevent duplicates
                 inserted_nodes = set()
 
-                # For each node, find matching PNG and insert
-                for node in nodes:
-                    if node in inserted_nodes:
+                # Process each block independently
+                for commands, nodes in blocks:
+                    if not commands:
                         continue
 
-                    png_match = find_best_match(node, expanded_commands, png_files)
-                    if not png_match:
-                        print(f"  No match: {node} + {' '.join(expanded_commands)}")
-                        continue
+                    # Expand abbreviations before matching
+                    expanded_commands = expand_abbreviations(commands)
 
-                    # Insert image at the first <NodeName> paragraph found
-                    inserted = False
-                    for paragraph in cell.paragraphs:
-                        if f'<{node}>' in paragraph.text:
-                            paragraph.paragraph_format.first_line_indent = 0
-                            paragraph.paragraph_format.left_indent = 0
-                            run = paragraph.add_run()
-                            run.add_break()
-                            run.add_break()
-                            run = paragraph.add_run()
-                            run.add_picture(png_match, width=Inches(6.495))
-                            print(f"  Inserted: {os.path.basename(png_match)}")
-                            inserted_nodes.add(node)
-                            inserted = True
-                            break  # Stop after first match per node
+                    # For each node in this block, find matching PNG and insert
+                    for node in nodes:
+                        if node in inserted_nodes:
+                            continue
 
-                    if not inserted:
-                        print(f"  Warning: found match but no <{node}> paragraph in cell")
+                        png_match = find_best_match(node, expanded_commands, png_files)
+                        if not png_match:
+                            print(f"  No match: {node} + {' '.join(expanded_commands)}")
+                            continue
+
+                        # Insert image at the first <NodeName> paragraph found
+                        inserted = False
+                        for paragraph in cell.paragraphs:
+                            if f'<{node}>' in paragraph.text:
+                                paragraph.paragraph_format.first_line_indent = 0
+                                paragraph.paragraph_format.left_indent = 0
+                                run = paragraph.add_run()
+                                run.add_break()
+                                run.add_break()
+                                run = paragraph.add_run()
+                                run.add_picture(png_match, width=Inches(6.495))
+                                print(f"  Inserted: {os.path.basename(png_match)}")
+                                inserted_nodes.add(node)
+                                inserted = True
+                                break  # Stop after first match per node
+
+                        if not inserted:
+                            print(f"  Warning: found match but no <{node}> paragraph in cell")
 
     document.save(DOCX_OUTPUT)
     print(f"\nSaved: {DOCX_OUTPUT}")

@@ -26,9 +26,8 @@ def test_parse_empty_prompt_skipped():
         MockParagraph('[HUAWEI]'),
         MockParagraph('<NODE1>'),
     ]
-    commands, nodes = parse_paragraphs(paragraphs)
-    assert commands == ['sys']
-    assert nodes == ['NODE1']
+    blocks = parse_paragraphs(paragraphs)
+    assert blocks == [(['sys'], ['NODE1'])]
 
 
 def test_parse_commands_and_nodes():
@@ -41,15 +40,40 @@ def test_parse_commands_and_nodes():
         MockParagraph('<TUC-NODE1>'),
         MockParagraph('<TUC-NODE2>'),
     ]
-    commands, nodes = parse_paragraphs(paragraphs)
-    assert commands == [
-        'system-view',
-        'interface GE0/0/1',
-        'display this',
-        'quit',
-        'quit',
+    blocks = parse_paragraphs(paragraphs)
+    assert blocks == [
+        ([
+            'system-view',
+            'interface GE0/0/1',
+            'display this',
+            'quit',
+            'quit',
+        ], ['TUC-NODE1', 'TUC-NODE2'])
     ]
-    assert nodes == ['TUC-NODE1', 'TUC-NODE2']
+
+
+def test_parse_splits_on_standalone_user_view():
+    """Standalone <Router>cmd after nested block starts a new block."""
+    paragraphs = [
+        MockParagraph('<HUAWEI>system-view'),
+        MockParagraph('[HUAWEI]interface GE0/0/1'),
+        MockParagraph('[HUAWEI-GE0/0/1]display this'),
+        MockParagraph('[HUAWEI-GE0/0/1]quit'),
+        MockParagraph('[HUAWEI]quit'),
+        MockParagraph('<HUAWEI>display device'),
+        MockParagraph('<TUC-NODE1>'),
+    ]
+    blocks = parse_paragraphs(paragraphs)
+    assert blocks == [
+        ([
+            'system-view',
+            'interface GE0/0/1',
+            'display this',
+            'quit',
+            'quit',
+        ], []),
+        (['display device'], ['TUC-NODE1']),
+    ]
 
 
 # --- expand_abbreviations tests ---

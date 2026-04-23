@@ -180,16 +180,25 @@ for table_index, table in enumerate(document.tables):
 
             if not commands or not nodes:
                 continue
-                continue
+
+            # Expand abbreviations before matching
+            expanded_commands = expand_abbreviations(commands)
+
+            # Track inserted nodes per cell to prevent duplicates
+            inserted_nodes = set()
 
             # For each node, find matching PNG and insert
             for node in nodes:
-                png_match = find_best_match(node, commands, png_files)
-                if not png_match:
-                    print(f"  No match: {node} + {' '.join(commands)}")
+                if node in inserted_nodes:
                     continue
 
-                # Insert image at the <NodeName> paragraph
+                png_match = find_best_match(node, expanded_commands, png_files)
+                if not png_match:
+                    print(f"  No match: {node} + {' '.join(expanded_commands)}")
+                    continue
+
+                # Insert image at the first <NodeName> paragraph found
+                inserted = False
                 for paragraph in cell.paragraphs:
                     if f'<{node}>' in paragraph.text:
                         paragraph.paragraph_format.first_line_indent = 0
@@ -200,6 +209,12 @@ for table_index, table in enumerate(document.tables):
                         run = paragraph.add_run()
                         run.add_picture(png_match, width=Inches(6.495))
                         print(f"  Inserted: {os.path.basename(png_match)}")
+                        inserted_nodes.add(node)
+                        inserted = True
+                        break  # Stop after first match per node
+
+                if not inserted:
+                    print(f"  Warning: found match but no <{node}> paragraph in cell")
 
 document.save(DOCX_OUTPUT)
 print(f"\nSaved: {DOCX_OUTPUT}")

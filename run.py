@@ -10,7 +10,7 @@ OUTPUT_DIR = os.path.join(SCRIPT_DIR, "screenshots")
 
 def main():
     if not os.path.isdir(LOGS_DIR):
-        print(f"❌ logs/ directory not found at {LOGS_DIR}")
+        print(f"[ERROR] logs/ directory not found at {LOGS_DIR}")
         sys.exit(1)
 
     log_files = sorted(
@@ -20,19 +20,19 @@ def main():
     )
 
     if not log_files:
-        print(f"⚠ No .txt files found in {LOGS_DIR}")
+        print(f"[WARN] No .txt files found in {LOGS_DIR}")
         sys.exit(1)
 
     total = 0
     for log_path in log_files:
         with open(log_path, "r", encoding="utf-8") as f:
             content = f.read()
-        print(f"\nProcessing {log_path} → {OUTPUT_DIR}/...")
+        print(f"\nProcessing {log_path} -> {OUTPUT_DIR}/...")
         results = process_network_logs.process_network_logs(content, output_dir=OUTPUT_DIR)
         total += len(results)
         print(f"  {len(results)} screenshots generated")
 
-    print(f"\n✅ Done! {total} total screenshots from {len(log_files)} log file(s)")
+    print(f"\n[DONE] {total} total screenshots from {len(log_files)} log file(s)")
 
 
 if __name__ == "__main__":

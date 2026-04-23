@@ -34,6 +34,7 @@ _ABBREVIATIONS = [
     ('dis th', 'display this'),
     ('dis', 'display'),
     ('system', 'system-view'),
+    ('sys', 'system-view'),
     ('q', 'quit'),
 ]
 

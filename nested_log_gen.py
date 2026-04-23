@@ -91,6 +91,8 @@ def generate_nested_huawei_log(router_name: str = "TUC-TYB91G01HWLEFC303-CPLEF03
         (29, [
             ("display this", ["#", f"interface GigabitEthernet0/0/29", " description TO_SWITCH_ACC_29", " ip address 10.1.29.1 255.255.255.0", " duplex full", " speed 1000", "#"]),
             ("shutdown", [f"Info: Interface GigabitEthernet0/0/29 is shutdown."]),
+            ("undo shutdown", [f"Info: Interface GigabitEthernet0/0/29 is up."]),
+            ("display this", ["#", f"interface GigabitEthernet0/0/29", " description TO_SWITCH_ACC_29", " ip address 10.1.29.1 255.255.255.0", " duplex full", " speed 1000", "#"]),
         ]),
         (31, [
             ("display this", ["#", f"interface GigabitEthernet0/0/31", " description TO_SWITCH_ACC_31", " ip address 10.1.31.1 255.255.255.0", " duplex full", " speed 1000", "#"]),
@@ -103,7 +105,7 @@ def generate_nested_huawei_log(router_name: str = "TUC-TYB91G01HWLEFC303-CPLEF03
     # Config-changing commands that trigger the ~ (unsaved config) or * (alarm) indicator
     config_change_keywords = ("shutdown", "undo shutdown", "network", "silent-interface", "undo silent-interface")
     # Interfaces that end in alarm state (shutdown without undo) → show * indicator
-    alarm_interfaces = {29}
+    alarm_interfaces = set()  # No alarm interfaces since all have undo shutdown
 
     for intf_id, sub_cmds in interface_configs:
         enter_system_view()

@@ -6,9 +6,9 @@ from docx.shared import Inches
 
 
 # --- Configuration ---
-DOCX_INPUT = r"test_document_v2.docx"
+DOCX_INPUT = r"test_document_v3.docx"
 PNG_PATH = r"screenshots\*.png"
-DOCX_OUTPUT = "test_document_v2_with_png.docx"
+DOCX_OUTPUT = "test_document_v3_with_png.docx"
 
 
 # --- Regex patterns ---

@@ -208,10 +208,14 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
 ### วิธีการทำงาน
 
 1. **อ่านตาราง** ใน Word document → แต่ละ cell หา prompt+command lines และ node names
-2. **จับคู่** ชื่อไฟล์ PNG ด้วย word-by-word prefix matching (case-insensitive)
-   - รองรับคำสั่งย่อ: `system`→`system-view`, `dis`→`display`, `q`→`quit`
-   - ต้องผ่าน 60% threshold ของ search tokens
-3. **แทรกรูป** ลงที่ `<NodeName>` paragraph ใน cell (กว้าง 6.495 นิ้ว)
+   - ข้าม prompt เปล่าที่ไม่มีคำสั่ง (เช่น `[HUAWEI]`)
+2. **ขยายคำย่อ** ก่อนจับคู่ (`system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit`)
+3. **จับคู่** ชื่อไฟล์ PNG ด้วย contiguous subsequence matching (case-insensitive)
+   - คำสั่งทั้งหมดใน cell ต้องปรากฏติดกันเป็นชุดในชื่อไฟล์ PNG
+   - รองรับ cell ที่ไม่มี `quit` (match แค่ส่วนที่ cell มี)
+   - ป้องกัน false positive (เช่น `system-view set cpu` จะไม่ match กับ `system-view display current-config`)
+4. **แทรกรูป** ลงที่ `<NodeName>` paragraph แรกที่เจอใน cell (กว้าง 6.495 นิ้ว)
+   - 1 node = 1 รูป ต่อ cell (deduplication)
 
 ### รูปแบบ Cell ที่รองรับ
 

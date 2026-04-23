@@ -17,11 +17,12 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Inse
 - `sanitize_filename()` — Strips only OS-invalid chars (`\/:*?"<>|`), preserves spaces and hyphens. `|` replaced with space. `/` replaced with `_` (e.g. `GigabitEthernet0/0/1` → `GigabitEthernet0_0_1`). Fallback `'unnamed'` for empty input, `max_length=200`
 
 ### Word Inserter (`putpnginword.py`)
-- `parse_cell_commands()` — Extracts commands from all prompt lines in a Word table cell (both `<Router>cmd` and `[Router]cmd` formats)
+- `parse_paragraphs()` — Extracts commands from all prompt lines in a Word table cell (both `<Router>cmd` and `[Router]cmd` formats). Skips empty prompts with no command (e.g., `[HUAWEI]`)
 - `parse_cell_nodes()` — Extracts device names from `<NodeName>` lines (no command after)
-- `find_best_match()` — Matches cell commands to PNG filenames using word-by-word prefix matching (case-insensitive). Supports abbreviated commands (`system`→`system-view`, `dis`→`display`, `q`→`quit`). Requires 60% token match threshold and exact device name match
+- `expand_abbreviations()` — Expands CLI abbreviations before matching: `system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit`. Uses longest-match-first to avoid partial expansion
+- `find_best_match()` — Matches cell commands to PNG filenames using **contiguous subsequence matching** (case-insensitive). Requires the full command sequence from the cell to appear consecutively in the PNG filename. Missing trailing tokens (e.g. `quit`) are allowed. Device name must match exactly
 - `sanitize_filename()` — Same logic as `process_network_logs.py` for consistent filename handling
-- Main loop: iterates Word tables, parses cells, finds matching PNGs, inserts images at `<NodeName>` paragraphs
+- Main loop: iterates Word tables, parses cells, expands abbreviations, finds matching PNGs with deduplication (1 image per node per cell), inserts images at `<NodeName>` paragraphs
 - `PERMIT_FALSE_KEYWORDS` / `PERMIT_TRUE_KEYWORDS` — configurable constants to control which test cases get images
 
 ### Sub-view Keywords (used in `_extract_device_name` and `_prompt_depth`)
@@ -96,19 +97,25 @@ No randomness — every command runs exactly once, in a fixed order. No `target_
 - `putpnginword.py` uses word-by-word prefix matching — prompt text in Word cells is ignored, only the command portion is extracted and matched against PNG filenames
 - `putpnginword.py` paths (`DOCX_INPUT`, `PNG_PATH`, `DOCX_OUTPUT`) and permit keywords are hardcoded constants at the top of the file — adjust per document
 
-## Current Project State (2026-04-21)
+## Current Project State (2026-04-23)
 
 ### Files
 ```
 process_network_logs.py   ← core engine (parse, group, screenshot)
-putpnginword.py           ← inserts PNGs into Word .docx (prefix matching)
+putpnginword.py           ← inserts PNGs into Word .docx (contiguous subsequence matching)
 run.py                    ← main entry point (reads logs/ → writes screenshots/)
 nested_log_gen.py         ← generates mock log (single NE, deterministic)
 example.txt               ← example of Word table cell format (single + nested)
-requirements.txt          ← jinja2, playwright, python-docx
+requirements.txt          ← jinja2, playwright, python-docx, pytest
 .gitignore                ← __pycache__, *.pyc, screenshots/, *.png
 README.md                 ← usage docs
 CLAUDE.md                 ← this file
+docs/                     ← design specs and implementation plans
+  superpowers/
+    specs/2026-04-23-putpnginword-fix-design.md
+    plans/2026-04-23-putpnginword-fix.md
+tests/                    ← unit tests
+  test_putpnginword.py    ← tests for parsing, expansion, matching, dedup
 logs/                     ← input log files (.txt)
 screenshots/              ← output PNG files
 ```
@@ -134,7 +141,14 @@ screenshots/              ← output PNG files
 - Fixed `sanitize_filename()`: `|` (pipe) replaced with space instead of underscore
 - Changed nested block PNG naming: from `{device} {first-cmd} {sub-view-suffixes}.png` to concatenating all commands `{device} {cmd1} {cmd2} ... .png`
 - Added `putpnginword.py`: inserts PNGs into Word .docx using word-by-word prefix matching (supports abbreviated commands)
+- **Fixed `putpnginword.py` matching logic (2026-04-23):** replaced prefix matching with contiguous subsequence matching to prevent false positives (e.g. `system-view set cpu` no longer matches `system-view display current-configuration`)
+- **Added `putpnginword.py` deduplication (2026-04-23):** ensures 1 image per node per cell via `inserted_nodes` set
+- **Added `putpnginword.py` abbreviation expansion (2026-04-23):** `expand_abbreviations()` supports `system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit` with longest-match-first
+- **Fixed `putpnginword.py` empty prompt parsing (2026-04-23):** `parse_paragraphs()` now skips prompt-only lines with no commands (e.g. `[HUAWEI]`)
+- **Added unit tests (2026-04-23):** `tests/test_putpnginword.py` covers parsing, expansion, matching, and deduplication
 
 ## Known Limitations
 - Only supports Huawei VRP format (`<Router>` / `[Router]` prompts). Cisco IOS is NOT supported
 - Regex may match output lines that resemble prompts if they start with `[` or `<` at column 0
+- `putpnginword.py` abbreviation dictionary is hardcoded; new abbreviations must be added to `_ABBREVIATIONS` manually
+- `putpnginword.py` paths and permit keywords are hardcoded constants at the top of the file

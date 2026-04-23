@@ -88,6 +88,39 @@ add_lines_to_cell(table2.rows[2].cells[0], [
     "<TUC-TYB91G01HWLEFC303-CPLEF03>",
 ])
 
-output_path = "test_document_v2.docx"
+# --- Table 3: Multiple independent command sets in one cell ---
+document.add_heading("3. Multiple Blocks in One Cell", level=2)
+table3 = document.add_table(rows=2, cols=2)
+table3.style = "Table Grid"
+
+# Row 0: nested block + standalone commands, nodes after each set
+add_lines_to_cell(table3.rows[0].cells[0], [
+    "<HUAWEI>system-view",
+    "[~HUAWEI]interface GigabitEthernet0/0/1",
+    "[~HUAWEI-GigabitEthernet0/0/1]display this",
+    "[~HUAWEI-GigabitEthernet0/0/1]quit",
+    "[~HUAWEI]quit",
+    "<TUC-TYB91G01HWLEFC303-CPLEF03>",
+    "<TUC-TYB91G01HWLEFC303-CPLEF04>",
+    "<HUAWEI>display device",
+    "<TUC-TYB91G01HWLEFC303-CPLEF03>",
+    "<TUC-TYB91G01HWLEFC303-CPLEF04>",
+    "<HUAWEI>display clock",
+    "<TUC-TYB91G01HWLEFC303-CPLEF03>",
+    "<TUC-TYB91G01HWLEFC303-CPLEF04>",
+])
+
+# Row 1: mixed - nested block then standalone
+add_lines_to_cell(table3.rows[1].cells[0], [
+    "<HUAWEI>system-view",
+    "[HUAWEI]set cpu threshold 4",
+    "[HUAWEI]quit",
+    "<TUC-TYB91G01HWLEFC303-CPLEF03>",
+    "<TUC-TYB91G01HWLEFC303-CPLEF04>",
+    "<HUAWEI>display version",
+    "<TUC-TYB91G01HWLEFC303-CPLEF03>",
+])
+
+output_path = "test_document_v3.docx"
 document.save(output_path)
 print(f"Created {output_path}")

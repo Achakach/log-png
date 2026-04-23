@@ -220,9 +220,6 @@ if __name__ == "__main__":
                 if not blocks or not all_nodes:
                     continue
 
-                # Track inserted nodes per cell to prevent duplicates
-                inserted_nodes = set()
-
                 # Process each block independently
                 for commands, nodes in blocks:
                     if not commands:
@@ -230,6 +227,9 @@ if __name__ == "__main__":
 
                     # Expand abbreviations before matching
                     expanded_commands = expand_abbreviations(commands)
+
+                    # Track inserted nodes per block to prevent duplicates within the same block
+                    inserted_nodes = set()
 
                     # For each node in this block, find matching PNG and insert
                     for node in nodes:

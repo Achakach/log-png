@@ -36,9 +36,16 @@ def parse_paragraphs(paragraphs):
     """
     commands = []
     nodes = []
+    # Match prompt-only lines like [Router] or <Router> with no command
+    PROMPT_ONLY_RE = re.compile(
+        r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*$'
+    )
     for para in paragraphs:
         text = para.text.strip()
         if not text:
+            continue
+        # Skip prompt-only lines (no command after prompt)
+        if PROMPT_ONLY_RE.match(text):
             continue
         # Check if this line is a node-only: <NodeName> with no command
         m = NODE_LINE_RE.match(text)
@@ -49,7 +56,7 @@ def parse_paragraphs(paragraphs):
         m = PROMPT_LINE_RE.match(text)
         if m:
             cmd = m.group(2).strip()
-            if cmd:  # Skip empty commands (e.g. prompt-only lines)
+            if cmd:
                 commands.append(cmd)
     return commands, nodes
 

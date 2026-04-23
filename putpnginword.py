@@ -90,41 +90,47 @@ def parse_paragraphs(paragraphs):
 
 
 def find_best_match(device: str, commands: list[str], png_files: list[str]) -> str | None:
-    """Find the PNG that best matches device + commands using prefix matching.
+    """Find the PNG whose filename contains the exact command sequence as a contiguous subsequence.
 
-    Uses longest initial prefix match to prioritize correct interface numbers.
-    Example: search 'GE0_0_29' matches PNG with 'GE0_0_29' over PNG with 'GE0_0_20'.
+    The device name must match exactly (case-insensitive).
+    All commands must appear consecutively and in order within the PNG filename tokens.
+    Missing trailing tokens (e.g. quit) in the cell are allowed.
     """
+    if not commands:
+        return None
+
     search_tokens = sanitize_filename(device).lower().split()
     for cmd in commands:
         search_tokens.extend(sanitize_filename(cmd).lower().split())
 
     best_match = None
-    best_prefix = 0  # longest consecutive matching tokens from start
-    best_score = 0   # total matching tokens (tiebreaker)
 
     for png_path in png_files:
         png_name = os.path.basename(png_path).replace('.png', '').lower()
         png_tokens = png_name.split()
 
-        # Device name must match exactly
+        # Device name must match exactly as first token
         if not png_tokens or png_tokens[0] != search_tokens[0]:
             continue
 
-        # Count total matching tokens AND consecutive matches from start
-        score = 0
-        prefix = 0
-        for i, st in enumerate(search_tokens):
-            if i < len(png_tokens) and png_tokens[i].startswith(st):
-                score += 1
-                if i == prefix:
-                    prefix += 1
-
-        # Prefer: longest initial prefix, then highest total score
-        if prefix > best_prefix or (prefix == best_prefix and score > best_score):
-            best_prefix = prefix
-            best_score = score
+        # Find contiguous subsequence of command tokens within PNG tokens
+        # search_tokens[1:] = command tokens only (skip device)
+        cmd_tokens = search_tokens[1:]
+        if not cmd_tokens:
+            # Device-only match (rare, but handle it)
             best_match = png_path
+            break
+
+        found = False
+        for i in range(1, len(png_tokens) - len(cmd_tokens) + 1):
+            if png_tokens[i:i + len(cmd_tokens)] == cmd_tokens:
+                found = True
+                break
+
+        if found:
+            # Prefer shorter filenames (fewer extra commands) on tie
+            if best_match is None or len(png_tokens) < len(os.path.basename(best_match).replace('.png', '').lower().split()):
+                best_match = png_path
 
     return best_match
 

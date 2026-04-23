@@ -220,6 +220,9 @@ if __name__ == "__main__":
                 if not blocks or not all_nodes:
                     continue
 
+                # Track search position so each block inserts under its own nodes
+                search_start_idx = 0
+
                 # Process each block independently
                 for commands, nodes in blocks:
                     if not commands:
@@ -241,9 +244,11 @@ if __name__ == "__main__":
                             print(f"  No match: {node} + {' '.join(expanded_commands)}")
                             continue
 
-                        # Insert image at the first <NodeName> paragraph found
+                        # Insert image at the next unused <NodeName> paragraph
                         inserted = False
-                        for paragraph in cell.paragraphs:
+                        for para_idx, paragraph in enumerate(cell.paragraphs):
+                            if para_idx < search_start_idx:
+                                continue
                             if f'<{node}>' in paragraph.text:
                                 paragraph.paragraph_format.first_line_indent = 0
                                 paragraph.paragraph_format.left_indent = 0
@@ -255,7 +260,8 @@ if __name__ == "__main__":
                                 print(f"  Inserted: {os.path.basename(png_match)}")
                                 inserted_nodes.add(node)
                                 inserted = True
-                                break  # Stop after first match per node
+                                search_start_idx = para_idx + 1
+                                break
 
                         if not inserted:
                             print(f"  Warning: found match but no <{node}> paragraph in cell")

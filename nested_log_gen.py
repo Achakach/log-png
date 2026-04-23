@@ -2,7 +2,7 @@ import argparse
 import os
 
 
-def generate_nested_huawei_log(router_name: str = "HW-Core-BKK-01", filename: str = "") -> int:
+def generate_nested_huawei_log(router_name: str = "TUC-TYB91G01HWLEFC303-CPLEF03", filename: str = "") -> int:
     """
     Generate a Huawei VRP CLI log for a single NE where every command
     and every nested command set runs exactly once.

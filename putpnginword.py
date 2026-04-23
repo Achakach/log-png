@@ -72,13 +72,13 @@ def parse_paragraphs(paragraphs):
         text = para.text.strip()
         if not text:
             continue
-        # Skip prompt-only lines (no command after prompt)
-        if PROMPT_ONLY_RE.match(text):
-            continue
         # Check if this line is a node-only: <NodeName> with no command
         m = NODE_LINE_RE.match(text)
         if m:
             nodes.append(m.group(1))
+            continue
+        # Skip prompt-only lines (no command after prompt)
+        if PROMPT_ONLY_RE.match(text):
             continue
         # Check if this line is a prompt+command
         m = PROMPT_LINE_RE.match(text)
@@ -136,85 +136,86 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
 
 
 # --- Main ---
-document = Document(DOCX_INPUT)
-png_files = sorted(glob.glob(PNG_PATH))
+if __name__ == "__main__":
+    document = Document(DOCX_INPUT)
+    png_files = sorted(glob.glob(PNG_PATH))
 
-print(f"Loaded: {DOCX_INPUT}")
-print(f"Found {len(png_files)} PNG files in {PNG_PATH}")
+    print(f"Loaded: {DOCX_INPUT}")
+    print(f"Found {len(png_files)} PNG files in {PNG_PATH}")
 
-# Permit logic — controls which test cases get images
-# (customizable per document)
-PERMIT_FALSE_KEYWORDS = (
-    'Reboot device.',
-    'To verify power module resetting on a switch',
-    'Reinsert the power module into slot 1-',
-    'To verify fan module resetting on a CE',
-)
-PERMIT_TRUE_KEYWORDS = (
-    'T01-02',
-    'Simulate alarms and view alarms on NMS',
-    'T01-05',
-)
+    # Permit logic — controls which test cases get images
+    # (customizable per document)
+    PERMIT_FALSE_KEYWORDS = (
+        'Reboot device.',
+        'To verify power module resetting on a switch',
+        'Reinsert the power module into slot 1-',
+        'To verify fan module resetting on a CE',
+    )
+    PERMIT_TRUE_KEYWORDS = (
+        'T01-02',
+        'Simulate alarms and view alarms on NMS',
+        'T01-05',
+    )
 
-for table_index, table in enumerate(document.tables):
-    print(f"\n--- Table {table_index + 1} ---")
+    for table_index, table in enumerate(document.tables):
+        print(f"\n--- Table {table_index + 1} ---")
 
-    for row in table.rows:
-        for cell in row.cells:
-            cell_text = cell.text
+        for row in table.rows:
+            for cell in row.cells:
+                cell_text = cell.text
 
-            # Determine permit
-            permit = True
-            for kw in PERMIT_FALSE_KEYWORDS:
-                if kw in cell_text:
-                    permit = False
-            for kw in PERMIT_TRUE_KEYWORDS:
-                if kw in cell_text:
-                    permit = True
+                # Determine permit
+                permit = True
+                for kw in PERMIT_FALSE_KEYWORDS:
+                    if kw in cell_text:
+                        permit = False
+                for kw in PERMIT_TRUE_KEYWORDS:
+                    if kw in cell_text:
+                        permit = True
 
-            if not permit:
-                continue
-
-            # Parse cell paragraphs
-            commands, nodes = parse_paragraphs(cell.paragraphs)
-
-            if not commands or not nodes:
-                continue
-
-            # Expand abbreviations before matching
-            expanded_commands = expand_abbreviations(commands)
-
-            # Track inserted nodes per cell to prevent duplicates
-            inserted_nodes = set()
-
-            # For each node, find matching PNG and insert
-            for node in nodes:
-                if node in inserted_nodes:
+                if not permit:
                     continue
 
-                png_match = find_best_match(node, expanded_commands, png_files)
-                if not png_match:
-                    print(f"  No match: {node} + {' '.join(expanded_commands)}")
+                # Parse cell paragraphs
+                commands, nodes = parse_paragraphs(cell.paragraphs)
+
+                if not commands or not nodes:
                     continue
 
-                # Insert image at the first <NodeName> paragraph found
-                inserted = False
-                for paragraph in cell.paragraphs:
-                    if f'<{node}>' in paragraph.text:
-                        paragraph.paragraph_format.first_line_indent = 0
-                        paragraph.paragraph_format.left_indent = 0
-                        run = paragraph.add_run()
-                        run.add_break()
-                        run.add_break()
-                        run = paragraph.add_run()
-                        run.add_picture(png_match, width=Inches(6.495))
-                        print(f"  Inserted: {os.path.basename(png_match)}")
-                        inserted_nodes.add(node)
-                        inserted = True
-                        break  # Stop after first match per node
+                # Expand abbreviations before matching
+                expanded_commands = expand_abbreviations(commands)
 
-                if not inserted:
-                    print(f"  Warning: found match but no <{node}> paragraph in cell")
+                # Track inserted nodes per cell to prevent duplicates
+                inserted_nodes = set()
 
-document.save(DOCX_OUTPUT)
-print(f"\nSaved: {DOCX_OUTPUT}")
+                # For each node, find matching PNG and insert
+                for node in nodes:
+                    if node in inserted_nodes:
+                        continue
+
+                    png_match = find_best_match(node, expanded_commands, png_files)
+                    if not png_match:
+                        print(f"  No match: {node} + {' '.join(expanded_commands)}")
+                        continue
+
+                    # Insert image at the first <NodeName> paragraph found
+                    inserted = False
+                    for paragraph in cell.paragraphs:
+                        if f'<{node}>' in paragraph.text:
+                            paragraph.paragraph_format.first_line_indent = 0
+                            paragraph.paragraph_format.left_indent = 0
+                            run = paragraph.add_run()
+                            run.add_break()
+                            run.add_break()
+                            run = paragraph.add_run()
+                            run.add_picture(png_match, width=Inches(6.495))
+                            print(f"  Inserted: {os.path.basename(png_match)}")
+                            inserted_nodes.add(node)
+                            inserted = True
+                            break  # Stop after first match per node
+
+                    if not inserted:
+                        print(f"  Warning: found match but no <{node}> paragraph in cell")
+
+    document.save(DOCX_OUTPUT)
+    print(f"\nSaved: {DOCX_OUTPUT}")

@@ -71,6 +71,22 @@ def generate_nested_huawei_log(router_name: str = "TUC-TYB91G01HWLEFC303-CPLEF03
         write(f"[{router_name}]", cmd_text, output)
     exit_system_view()
 
+    # ---- Set CPU threshold (own session, returns to user view) ----
+    enter_system_view()
+    write(f"[{router_name}]", "set cpu threshold 4", ["Info: Configuration succeeded."])
+    exit_system_view()
+
+    # ---- Loopback interface with commit (own session) ----
+    enter_system_view()
+    lines.append(f"[{router_name}] interface loopback 123")
+    lines.append("")
+    write(f"[{router_name}-Loopback123]", "commit", ["Info: The system is busy in committing configurations."])
+    write(f"[*{router_name}-Loopback123]", "display this", ["#", "interface Loopback123", "#"])
+    write(f"[~{router_name}-Loopback123]", "quit", [])
+    lines.append("")
+    write(f"[~{router_name}]", "undo interface LoopBack 123", ["Info: Configuration succeeded."])
+    exit_system_view()
+
     # ---- Interface sub-views (each interface = own system-view session) ----
     interface_configs = [
         (1, [

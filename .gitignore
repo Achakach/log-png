@@ -7,3 +7,6 @@ logs/
 *.txt
 !CLAUDE.md
 !requirement.txt
+*.zip
+example_doc/
+docs/

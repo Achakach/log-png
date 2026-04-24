@@ -257,3 +257,23 @@ def test_should_process_table_match():
     # Table 1 under T01-02
     assert should_process_table(doc, 1, ['T01-02'])
     assert not should_process_table(doc, 1, ['T01-01'])
+
+
+# --- Multi-device per-cell matching tests ---
+
+def test_multi_device_match_any_block():
+    """Nodes at end of cell should match against any command block."""
+    paragraphs = [
+        MockParagraph('<HUAWEI>display cpu-usage'),
+        MockParagraph('<HUAWEI>display cpu'),
+        MockParagraph('<device1>'),
+        MockParagraph('<device2>'),
+    ]
+    blocks = parse_paragraphs(paragraphs)
+    # Should have 2 blocks (both standalone, split on second <HUAWEI>)
+    assert len(blocks) == 2
+    # Collect all nodes cell-wide
+    all_nodes = set()
+    for _, block_nodes in blocks:
+        all_nodes.update(block_nodes)
+    assert all_nodes == {'device1', 'device2'}

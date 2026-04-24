@@ -260,7 +260,15 @@ if __name__ == "__main__":
     )
 
     for table_index, table in enumerate(document.tables):
+        section = get_table_section(document, table)
+
+        if TARGET_SECTIONS:
+            if not section or not any(section.startswith(target) for target in TARGET_SECTIONS):
+                continue
+
         print(f"\n--- Table {table_index + 1} ---")
+        if section:
+            print(f"  Section: {section}")
 
         for row in table.rows:
             for cell in row.cells:

@@ -287,7 +287,7 @@ if __name__ == "__main__":
                 # Parse cell paragraphs into command blocks
                 blocks = parse_paragraphs(cell.paragraphs)
 
-                # Collect all nodes from all blocks for deduplication
+                # Collect all nodes from all blocks (cell-wide)
                 all_nodes = set()
                 for _, block_nodes in blocks:
                     all_nodes.update(block_nodes)
@@ -295,32 +295,26 @@ if __name__ == "__main__":
                 if not blocks or not all_nodes:
                     continue
 
-                # Track search position so each block inserts under its own nodes
+                # Track inserted nodes per cell to prevent duplicates
+                inserted_nodes = set()
                 search_start_idx = 0
 
-                # Process each block independently
-                for commands, nodes in blocks:
-                    if not commands:
+                # For each node, try each command block until match found
+                for node in all_nodes:
+                    if node in inserted_nodes:
                         continue
 
-                    # Expand abbreviations before matching
-                    expanded_commands = expand_abbreviations(commands)
-
-                    # Track inserted nodes per block to prevent duplicates within the same block
-                    inserted_nodes = set()
-
-                    # For each node in this block, find matching PNG and insert
-                    for node in nodes:
-                        if node in inserted_nodes:
+                    matched = False
+                    for commands, _ in blocks:
+                        if not commands:
                             continue
 
+                        expanded_commands = expand_abbreviations(commands)
                         png_match = find_best_match(node, expanded_commands, png_files)
                         if not png_match:
-                            print(f"  No match: {node} + {' '.join(expanded_commands)}")
                             continue
 
                         # Insert image at the next unused <NodeName> paragraph
-                        inserted = False
                         for para_idx, paragraph in enumerate(cell.paragraphs):
                             if para_idx < search_start_idx:
                                 continue
@@ -334,12 +328,15 @@ if __name__ == "__main__":
                                 run.add_picture(png_match, width=Inches(6.495))
                                 print(f"  Inserted: {os.path.basename(png_match)}")
                                 inserted_nodes.add(node)
-                                inserted = True
                                 search_start_idx = para_idx + 1
+                                matched = True
                                 break
 
-                        if not inserted:
-                            print(f"  Warning: found match but no <{node}> paragraph in cell")
+                        if matched:
+                            break
+
+                    if not matched:
+                        print(f"  No match: {node}")
 
     document.save(DOCX_OUTPUT)
     print(f"\nSaved: {DOCX_OUTPUT}")

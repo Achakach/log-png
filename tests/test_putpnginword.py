@@ -11,7 +11,9 @@ from putpnginword import (
     find_best_match,
     sanitize_filename,
     list_sections,
-    get_table_section,
+    extract_title,
+    get_heading_level,
+    should_process_table,
 )
 from docx import Document
 
@@ -215,32 +217,43 @@ def test_list_sections(capsys):
     assert 'Some text' not in captured.out
 
 
-# --- get_table_section integration test ---
+# --- extract_title tests ---
 
-def test_get_table_section_finds_heading():
-    # Requires 'document structure example.docx' present
+def test_extract_title_with_id():
+    assert extract_title('T01-0201-01 login protocol SSH') == 'login protocol SSH'
+
+
+def test_extract_title_without_id():
+    assert extract_title('Device Management Acceptance') == 'Device Management Acceptance'
+
+
+def test_extract_title_with_dash_id():
+    assert extract_title('T01-01 system Hardware Maintenance') == 'system Hardware Maintenance'
+
+
+# --- get_heading_level tests ---
+
+def test_get_heading_level_heading3():
+    para = MockPara('Foo', 'Heading 3')
+    assert get_heading_level(para) == 3
+
+
+def test_get_heading_level_normal():
+    para = MockPara('Foo', 'Normal')
+    assert get_heading_level(para) is None
+
+
+# --- should_process_table integration test ---
+
+def test_should_process_table_match():
     doc_path = Path('document structure example.docx')
     if not doc_path.exists():
         pytest.skip('document structure example.docx not found')
     doc = Document(str(doc_path))
-    # There is 1 table in the example doc, under T01-0101
     assert len(doc.tables) >= 1
-    section = get_table_section(doc, doc.tables[0])
-    # The table should be under T01-0101
-    assert section is not None
-    assert section.startswith('T01')
-
-
-# --- TARGET_SECTIONS prefix match logic ---
-
-def test_prefix_match_single():
-    targets = ['T01-01']
-    assert 'T01-0101'.startswith(targets[0])
-    assert not 'T01-02'.startswith(targets[0])
-
-
-def test_prefix_match_multiple():
-    targets = ['T01-01', 'T02']
-    assert any('T01-0101'.startswith(t) for t in targets)
-    assert any('T02-01'.startswith(t) for t in targets)
-    assert not any('T03'.startswith(t) for t in targets)
+    # Table 0 under T01-01
+    assert should_process_table(doc, 0, ['T01-01'])
+    assert should_process_table(doc, 0, ['T01'])
+    # Table 1 under T01-02
+    assert should_process_table(doc, 1, ['T01-02'])
+    assert not should_process_table(doc, 1, ['T01-01'])

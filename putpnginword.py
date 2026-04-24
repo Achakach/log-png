@@ -13,12 +13,10 @@ DOCX_OUTPUT = "test_document_v3_with_png.docx"
 
 # --- Section Filtering ---
 # Empty list [] = process ALL tables (default, backward-compatible)
-# List of prefixes = process only tables whose nearest heading starts with any prefix
+# List of titles = process only tables under matching heading titles and deeper
 # Examples:
-#   ['T01']        → T01 and all sub-sections
-#   ['T01-01']     → T01-01 and deeper
-#   ['T01-0101']   → T01-0101 only
-#   ['T01-01', 'T02-02'] → multiple sections
+#   ['Device Management Acceptance'] → process this section and all sub-sections
+#   ['login protocol SSH'] → process specific sub-section
 TARGET_SECTIONS = []
 
 
@@ -30,48 +28,65 @@ PROMPT_LINE_RE = re.compile(r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s
 NODE_LINE_RE = re.compile(r'^<([A-Za-z][\w.\-]*)>\s*$')
 
 
-def get_table_section(document, target_table):
-    """Return the nearest heading text before target_table, or None."""
-    # Find the index of target_table in document.tables
-    table_idx = None
-    for idx, tbl in enumerate(document.tables):
-        if tbl._tbl is target_table._tbl:
-            table_idx = idx
-            break
-    if table_idx is None:
-        return None
+def extract_title(text):
+    """Remove ID prefix like T01-0201-01 from heading text."""
+    m = re.match(r'^[A-Z]\d+(?:[.-]\d+)*\s+(.*)$', text)
+    if m:
+        return m.group(1).strip()
+    return text.strip()
 
-    # Build a map from XML paragraph element to python-docx Paragraph object
+
+def get_heading_level(para):
+    """Extract level number from 'Heading N' style."""
+    if para.style and para.style.name:
+        name = para.style.name
+        if name.startswith('Heading'):
+            parts = name.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                return int(parts[1])
+    return None
+
+
+def should_process_table(document, table_idx, target_titles):
+    """Walk body elements in order. Activate on heading match, deactivate on same/higher level."""
     para_map = {para._p: para for para in document.paragraphs}
-
-    # Scan body elements in document order.
-    # document.element.body contains paragraphs and tables interleaved.
-    body = document.element.body
     seen_tables = 0
-    current_section = None
-    for child in body:
+    active_level = None
+
+    for child in document.element.body:
         if child.tag.endswith('tbl'):
+            if seen_tables == table_idx:
+                return active_level is not None
             seen_tables += 1
-            if seen_tables > table_idx:
-                return current_section
-        # Check if this child is a paragraph with a Heading style
+            continue
+
         if child.tag.endswith('p'):
             para = para_map.get(child)
-            if para and para.style and para.style.name and para.style.name.startswith('Heading') and para.text.strip():
-                current_section = para.text.strip()
-    return current_section
+            if not para:
+                continue
+
+            level = get_heading_level(para)
+            if level is None:
+                continue
+
+            title = extract_title(para.text)
+
+            if title in target_titles:
+                active_level = level
+            elif active_level is not None and level <= active_level:
+                active_level = None
+
+    return False
 
 
 def list_sections(doc):
     """Print all heading sections found in the document, in order."""
-    sections = []
-    for para in doc.paragraphs:
-        if (para.style and para.style.name and
-                para.style.name.startswith('Heading') and para.text.strip()):
-            sections.append(para.text.strip())
     print("Sections found in document:")
-    for s in sections:
-        print(f"  {s}")
+    for para in doc.paragraphs:
+        level = get_heading_level(para)
+        if level is not None and para.text.strip():
+            title = extract_title(para.text)
+            print(f"  [Heading {level}] {title}")
 
 
 def sanitize_filename(name: str, max_length: int = 200) -> str:
@@ -247,15 +262,11 @@ if __name__ == "__main__":
     )
 
     for table_index, table in enumerate(document.tables):
-        section = get_table_section(document, table)
-
         if TARGET_SECTIONS:
-            if not section or not any(section.startswith(target) for target in TARGET_SECTIONS):
+            if not should_process_table(document, table_index, TARGET_SECTIONS):
                 continue
 
         print(f"\n--- Table {table_index + 1} ---")
-        if section:
-            print(f"  Section: {section}")
 
         for row in table.rows:
             for cell in row.cells:

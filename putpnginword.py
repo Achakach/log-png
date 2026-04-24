@@ -41,8 +41,11 @@ def get_table_section(document, target_table):
     if table_idx is None:
         return None
 
-    # Scan body elements in document order to find where tables and paragraphs appear.
-    # document.element.body contains paragraphs and tables in their actual document order.
+    # Build a map from XML paragraph element to python-docx Paragraph object
+    para_map = {para._p: para for para in document.paragraphs}
+
+    # Scan body elements in document order.
+    # document.element.body contains paragraphs and tables interleaved.
     body = document.element.body
     seen_tables = 0
     current_section = None
@@ -53,25 +56,9 @@ def get_table_section(document, target_table):
                 return current_section
         # Check if this child is a paragraph with a Heading style
         if child.tag.endswith('p'):
-            # Extract style name from the paragraph's pPr -> pStyle
-            style_name = None
-            pPr = child.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
-            if pPr is not None:
-                pStyle = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pStyle')
-                if pStyle is not None:
-                    style_val = pStyle.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
-                    if style_val:
-                        # python-docx style names are like 'Heading1', 'Heading2', etc.
-                        # but val is 'Heading1' without space
-                        style_name = style_val
-            # Also check text content
-            text_parts = []
-            for t in child.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'):
-                if t.text:
-                    text_parts.append(t.text)
-            text = ''.join(text_parts).strip()
-            if style_name and style_name.startswith('Heading') and text:
-                current_section = text
+            para = para_map.get(child)
+            if para and para.style and para.style.name and para.style.name.startswith('Heading') and para.text.strip():
+                current_section = para.text.strip()
     return current_section
 
 

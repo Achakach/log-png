@@ -10,7 +10,10 @@ from putpnginword import (
     expand_abbreviations,
     find_best_match,
     sanitize_filename,
+    list_sections,
+    get_table_section,
 )
+from docx import Document
 
 
 # --- parse_paragraphs tests ---
@@ -182,3 +185,62 @@ def test_sanitize_pipe():
 
 def test_sanitize_slash():
     assert sanitize_filename('GE0/0/1') == 'GE0_0_1'
+
+
+# --- list_sections tests ---
+
+class MockStyle:
+    def __init__(self, name):
+        self.name = name
+
+
+class MockPara:
+    def __init__(self, text, style_name='Normal'):
+        self.text = text
+        self.style = MockStyle(style_name) if style_name else None
+
+
+def test_list_sections(capsys):
+    doc = type('Doc', (), {'paragraphs': [
+        MockPara('T01', 'Heading 2'),
+        MockPara('T01-01', 'Heading 3'),
+        MockPara('Some text', 'Normal'),
+        MockPara('T01-0101', 'Heading 4'),
+    ]})()
+    list_sections(doc)
+    captured = capsys.readouterr()
+    assert 'T01' in captured.out
+    assert 'T01-01' in captured.out
+    assert 'T01-0101' in captured.out
+    assert 'Some text' not in captured.out
+
+
+# --- get_table_section integration test ---
+
+def test_get_table_section_finds_heading():
+    # Requires 'document structure example.docx' present
+    doc_path = Path('document structure example.docx')
+    if not doc_path.exists():
+        pytest.skip('document structure example.docx not found')
+    doc = Document(str(doc_path))
+    # There is 1 table in the example doc, under T01-0101
+    assert len(doc.tables) >= 1
+    section = get_table_section(doc, doc.tables[0])
+    # The table should be under T01-0101
+    assert section is not None
+    assert section.startswith('T01')
+
+
+# --- TARGET_SECTIONS prefix match logic ---
+
+def test_prefix_match_single():
+    targets = ['T01-01']
+    assert 'T01-0101'.startswith(targets[0])
+    assert not 'T01-02'.startswith(targets[0])
+
+
+def test_prefix_match_multiple():
+    targets = ['T01-01', 'T02']
+    assert any('T01-0101'.startswith(t) for t in targets)
+    assert any('T02-01'.startswith(t) for t in targets)
+    assert not any('T03'.startswith(t) for t in targets)

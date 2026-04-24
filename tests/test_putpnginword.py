@@ -277,3 +277,14 @@ def test_multi_device_match_any_block():
     for _, block_nodes in blocks:
         all_nodes.update(block_nodes)
     assert all_nodes == {'device1', 'device2'}
+
+
+def test_newline_split_in_paragraph():
+    """Word cell with multiple lines in single paragraph should split correctly."""
+    paragraphs = [
+        MockParagraph('<HUAWEI>commandx1\n[HUAWEI]commandx2\n<device1>\npicx1\n<device2>\npicx2'),
+    ]
+    blocks = parse_paragraphs(paragraphs)
+    assert len(blocks) == 1
+    assert blocks[0][0] == ['commandx1', 'commandx2']
+    assert blocks[0][1] == ['device1', 'device2']

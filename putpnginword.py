@@ -11,12 +11,68 @@ PNG_PATH = r"screenshots\*.png"
 DOCX_OUTPUT = "test_document_v3_with_png.docx"
 
 
+# --- Section Filtering ---
+# Empty list [] = process ALL tables (default, backward-compatible)
+# List of prefixes = process only tables whose nearest heading starts with any prefix
+# Examples:
+#   ['T01']        → T01 and all sub-sections
+#   ['T01-01']     → T01-01 and deeper
+#   ['T01-0101']   → T01-0101 only
+#   ['T01-01', 'T02-02'] → multiple sections
+TARGET_SECTIONS = []
+
+
 # --- Regex patterns ---
 # Match prompt+command: <Router>cmd or [~*Router]cmd or [~*Router-sub]cmd
 PROMPT_LINE_RE = re.compile(r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*(.+)$')
 
 # Match node-only: <NodeName> with nothing after
 NODE_LINE_RE = re.compile(r'^<([A-Za-z][\w.\-]*)>\s*$')
+
+
+def get_table_section(document, target_table):
+    """Return the nearest heading text before target_table, or None."""
+    # Find the index of target_table in document.tables
+    table_idx = None
+    for idx, tbl in enumerate(document.tables):
+        if tbl._tbl is target_table._tbl:
+            table_idx = idx
+            break
+    if table_idx is None:
+        return None
+
+    # Scan body elements in document order to find where tables and paragraphs appear.
+    # document.element.body contains paragraphs and tables in their actual document order.
+    body = document.element.body
+    seen_tables = 0
+    current_section = None
+    for child in body:
+        if child.tag.endswith('tbl'):
+            seen_tables += 1
+            if seen_tables > table_idx:
+                return current_section
+        # Check if this child is a paragraph with a Heading style
+        if child.tag.endswith('p'):
+            # Extract style name from the paragraph's pPr -> pStyle
+            style_name = None
+            pPr = child.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
+            if pPr is not None:
+                pStyle = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pStyle')
+                if pStyle is not None:
+                    style_val = pStyle.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
+                    if style_val:
+                        # python-docx style names are like 'Heading1', 'Heading2', etc.
+                        # but val is 'Heading1' without space
+                        style_name = style_val
+            # Also check text content
+            text_parts = []
+            for t in child.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'):
+                if t.text:
+                    text_parts.append(t.text)
+            text = ''.join(text_parts).strip()
+            if style_name and style_name.startswith('Heading') and text:
+                current_section = text
+    return current_section
 
 
 def sanitize_filename(name: str, max_length: int = 200) -> str:

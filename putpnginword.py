@@ -75,6 +75,18 @@ def get_table_section(document, target_table):
     return current_section
 
 
+def list_sections(doc):
+    """Print all heading sections found in the document, in order."""
+    sections = []
+    for para in doc.paragraphs:
+        if (para.style and para.style.name and
+                para.style.name.startswith('Heading') and para.text.strip()):
+            sections.append(para.text.strip())
+    print("Sections found in document:")
+    for s in sections:
+        print(f"  {s}")
+
+
 def sanitize_filename(name: str, max_length: int = 200) -> str:
     result = re.sub(r'[\\/:*?"<>\n\r\t]', '_', name)
     result = result.replace('|', ' ')

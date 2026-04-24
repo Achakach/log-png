@@ -327,6 +327,7 @@ if __name__ == "__main__":
                                 run = paragraph.add_run()
                                 run.add_picture(png_match, width=Inches(6.495))
                                 print(f"  Inserted: {os.path.basename(png_match)}")
+                                print(f"    Command: {' '.join(expanded_commands)}")
                                 inserted_nodes.add(node)
                                 search_start_idx = para_idx + 1
                                 matched = True

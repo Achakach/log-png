@@ -145,39 +145,42 @@ def parse_paragraphs(paragraphs):
     )
 
     for para in paragraphs:
-        text = para.text.strip()
-        if not text:
-            continue
-
-        # Check if this line is a node-only: <NodeName> with no command
-        m = NODE_LINE_RE.match(text)
-        if m:
-            nodes.append(m.group(1))
-            continue
-
-        # Skip prompt-only lines (no command after prompt)
-        if PROMPT_ONLY_RE.match(text):
-            continue
-
-        # Check if this line is a prompt+command
-        m = PROMPT_LINE_RE.match(text)
-        if m:
-            cmd = m.group(2).strip()
-            prompt = m.group(1)
-            if not cmd:
+        # Split paragraph text by newlines to handle Word table cells
+        # where multiple lines are in a single paragraph
+        for line in para.text.split('\n'):
+            text = line.strip()
+            if not text:
                 continue
 
-            # Detect standalone user-view command: <Router>cmd (depth 0)
-            # If we already have commands in current block, this starts a new block
-            if (prompt.startswith('<') and
-                    not prompt.startswith('<~') and
-                    not prompt.startswith('<*') and
-                    current_commands):
-                blocks.append((current_commands, nodes))
-                current_commands = []
-                nodes = []
+            # Check if this line is a node-only: <NodeName> with no command
+            m = NODE_LINE_RE.match(text)
+            if m:
+                nodes.append(m.group(1))
+                continue
 
-            current_commands.append(cmd)
+            # Skip prompt-only lines (no command after prompt)
+            if PROMPT_ONLY_RE.match(text):
+                continue
+
+            # Check if this line is a prompt+command
+            m = PROMPT_LINE_RE.match(text)
+            if m:
+                cmd = m.group(2).strip()
+                prompt = m.group(1)
+                if not cmd:
+                    continue
+
+                # Detect standalone user-view command: <Router>cmd (depth 0)
+                # If we already have commands in current block, this starts a new block
+                if (prompt.startswith('<') and
+                        not prompt.startswith('<~') and
+                        not prompt.startswith('<*') and
+                        current_commands):
+                    blocks.append((current_commands, nodes))
+                    current_commands = []
+                    nodes = []
+
+                current_commands.append(cmd)
 
     if current_commands:
         blocks.append((current_commands, nodes))

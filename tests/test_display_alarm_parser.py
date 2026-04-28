@@ -86,11 +86,11 @@ def test_compare_alarms_multiple_new():
 
 
 def test_format_alarm_suffix_single():
-    assert format_alarm_suffix(['FAN3']) == '[FAN3]'
+    assert format_alarm_suffix(['FAN3']) == '[FAN3 removed]'
 
 
 def test_format_alarm_suffix_multiple():
-    assert format_alarm_suffix(['FAN3', 'PWR1']) == '[FAN3 PWR1]'
+    assert format_alarm_suffix(['FAN3', 'PWR1']) == '[FAN3 PWR1 removed]'
 
 
 def test_format_alarm_suffix_empty():

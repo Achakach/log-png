@@ -96,9 +96,9 @@ def format_alarm_suffix(new_alarms: list[str]) -> str:
     """Convert list of new alarm card names into filename suffix.
 
     Examples:
-      ['FAN3']      → '[FAN3]'
-      ['FAN3', 'PWR1'] → '[FAN3 PWR1]'
+      ['FAN3']      → '[FAN3 removed]'
+      ['FAN3', 'PWR1'] → '[FAN3 PWR1 removed]'
     """
     if not new_alarms:
         return ''
-    return f"[{' '.join(new_alarms)}]"
+    return f"[{' '.join(new_alarms)} removed]"

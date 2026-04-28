@@ -6,6 +6,7 @@ import argparse
 from jinja2 import Environment, select_autoescape
 from playwright.async_api import async_playwright
 from display_device_parser import parse_display_device, compare_devices, format_removed_suffix
+from display_alarm_parser import parse_display_alarm_active, compare_alarms, format_alarm_suffix
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -297,6 +298,9 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
             # Per-NE baseline tracker for display device output
             # Stores {safe_device: {'cards': [...], 'filepath': '...'}}
             _device_baselines = {}
+            # Per-NE baseline tracker for display alarm active output
+            # Stores {safe_device: {'alarms': [...], 'filepath': '...'}}
+            _alarm_baselines = {}
             removed_dir = os.path.normpath(os.path.join(output_dir, '..', 'removeddevicetest'))
 
             for idx, group in enumerate(grouped_segments):
@@ -312,6 +316,8 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                 # Baseline tracking for display device
                 removed_suffix = ''
                 is_removed_case = False
+                alarm_suffix = ''
+                is_new_alarm_case = False
                 if first_cmd['command'].strip().lower() == 'display device':
                     try:
                         parsed = parse_display_device(first_cmd['output'])
@@ -328,21 +334,39 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                     except Exception as e:
                         print(f"⚠ Failed to parse display device for {safe_device}: {e}")
 
+                # Baseline tracking for display alarm active
+                if first_cmd['command'].strip().lower() == 'display alarm active':
+                    try:
+                        parsed_alarms = parse_display_alarm_active(first_cmd['output'])
+                        if safe_device not in _alarm_baselines:
+                            # First occurrence → establish baseline
+                            _alarm_baselines[safe_device] = {'alarms': parsed_alarms, 'filepath': None}
+                        else:
+                            baseline_alarms = _alarm_baselines[safe_device]['alarms']
+                            new_alarms = compare_alarms(baseline_alarms, parsed_alarms)
+                            if new_alarms:
+                                alarm_suffix = ' ' + format_alarm_suffix(new_alarms)
+                                is_new_alarm_case = True
+                    except Exception as e:
+                        print(f"⚠ Failed to parse display alarm active for {safe_device}: {e}")
+
                 if len(group) == 1:
                     # Standalone command: "HW-Core-BKK-01 display device.png"
-                    filename = f"{safe_device} {safe_first_cmd}{removed_suffix}.png"
+                    filename = f"{safe_device} {safe_first_cmd}{removed_suffix}{alarm_suffix}.png"
                 else:
                     # Nested block: "HW-Core-BKK-01 system-view interface GE0_0_1 display this quit quit.png"
                     safe_cmds = " ".join(sanitize_filename(seg['command']) for seg in group)
-                    filename = f"{safe_device} {safe_cmds}{removed_suffix}.png"
+                    filename = f"{safe_device} {safe_cmds}{removed_suffix}{alarm_suffix}.png"
                 filepath = os.path.join(output_dir, filename)
 
                 await element.screenshot(path=filepath, type='png')
                 print(f"[{idx+1}/{len(grouped_segments)}] Generated: {filepath} ({len(group)} cmds)")
 
                 # If this is a removed case, copy baseline and save to removeddevicetest/
-                if is_removed_case:
+                if is_removed_case or is_new_alarm_case:
                     os.makedirs(removed_dir, exist_ok=True)
+
+                if is_removed_case:
                     baseline_info = _device_baselines[safe_device]
                     baseline_filepath = baseline_info['filepath']
                     if baseline_filepath and os.path.exists(baseline_filepath):
@@ -369,10 +393,30 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                     await element.screenshot(path=removed_filepath, type='png')
                     print(f"  Saved removed case to: {removed_filepath}")
 
+                # If this is a new alarm case, copy baseline alarm and save to removeddevicetest/
+                if is_new_alarm_case:
+                    alarm_baseline_info = _alarm_baselines[safe_device]
+                    alarm_baseline_filepath = alarm_baseline_info['filepath']
+                    if alarm_baseline_filepath and os.path.exists(alarm_baseline_filepath):
+                        alarm_baseline_basename = os.path.basename(alarm_baseline_filepath)
+                        removed_alarm_baseline = os.path.join(removed_dir, alarm_baseline_basename)
+                        if not os.path.exists(removed_alarm_baseline):
+                            import shutil
+                            shutil.copy2(alarm_baseline_filepath, removed_alarm_baseline)
+                            print(f"  Copied alarm baseline to: {removed_alarm_baseline}")
+
+                    alarm_removed_filename = filename
+                    alarm_removed_filepath = os.path.join(removed_dir, alarm_removed_filename)
+                    await element.screenshot(path=alarm_removed_filepath, type='png')
+                    print(f"  Saved new alarm case to: {alarm_removed_filepath}")
+
                 # Store filepath for baseline tracking
                 if first_cmd['command'].strip().lower() == 'display device' and safe_device in _device_baselines:
                     if _device_baselines[safe_device]['filepath'] is None:
                         _device_baselines[safe_device]['filepath'] = filepath
+                if first_cmd['command'].strip().lower() == 'display alarm active' and safe_device in _alarm_baselines:
+                    if _alarm_baselines[safe_device]['filepath'] is None:
+                        _alarm_baselines[safe_device]['filepath'] = filepath
 
                 results.append({
                     'screenshot_path': filepath,

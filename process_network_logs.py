@@ -295,7 +295,9 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
 
         try:
             # Per-NE baseline tracker for display device output
+            # Stores {safe_device: {'cards': [...], 'filepath': '...'}}
             _device_baselines = {}
+            removed_dir = os.path.normpath(os.path.join(output_dir, '..', 'removeddevicetest'))
 
             for idx, group in enumerate(grouped_segments):
                 html_content = template.render(blocks=group)
@@ -309,18 +311,20 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
 
                 # Baseline tracking for display device
                 removed_suffix = ''
+                is_removed_case = False
                 if first_cmd['command'].strip().lower() == 'display device':
                     try:
                         parsed = parse_display_device(first_cmd['output'])
                         if parsed:
                             if safe_device not in _device_baselines:
                                 # First occurrence → establish baseline
-                                _device_baselines[safe_device] = parsed
+                                _device_baselines[safe_device] = {'cards': parsed, 'filepath': None}
                             else:
-                                baseline = _device_baselines[safe_device]
+                                baseline = _device_baselines[safe_device]['cards']
                                 missing = compare_devices(baseline, parsed)
                                 if missing:
                                     removed_suffix = ' ' + format_removed_suffix(missing)
+                                    is_removed_case = True
                     except Exception as e:
                         print(f"⚠ Failed to parse display device for {safe_device}: {e}")
 
@@ -335,6 +339,29 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
 
                 await element.screenshot(path=filepath, type='png')
                 print(f"[{idx+1}/{len(grouped_segments)}] Generated: {filepath} ({len(group)} cmds)")
+
+                # If this is a removed case, copy baseline and save to removeddevicetest/
+                if is_removed_case:
+                    os.makedirs(removed_dir, exist_ok=True)
+                    baseline_info = _device_baselines[safe_device]
+                    baseline_filepath = baseline_info['filepath']
+                    if baseline_filepath and os.path.exists(baseline_filepath):
+                        baseline_basename = os.path.basename(baseline_filepath)
+                        removed_baseline = os.path.join(removed_dir, baseline_basename)
+                        if not os.path.exists(removed_baseline):
+                            import shutil
+                            shutil.copy2(baseline_filepath, removed_baseline)
+                            print(f"  Copied baseline to: {removed_baseline}")
+
+                    removed_filename = filename
+                    removed_filepath = os.path.join(removed_dir, removed_filename)
+                    await element.screenshot(path=removed_filepath, type='png')
+                    print(f"  Saved removed case to: {removed_filepath}")
+
+                # Store filepath for baseline tracking
+                if first_cmd['command'].strip().lower() == 'display device' and safe_device in _device_baselines:
+                    if _device_baselines[safe_device]['filepath'] is None:
+                        _device_baselines[safe_device]['filepath'] = filepath
 
                 results.append({
                     'screenshot_path': filepath,

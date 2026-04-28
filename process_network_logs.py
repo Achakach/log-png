@@ -5,6 +5,7 @@ import sys
 import argparse
 from jinja2 import Environment, select_autoescape
 from playwright.async_api import async_playwright
+from display_device_parser import parse_display_device, compare_devices, format_removed_suffix
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -293,6 +294,9 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
         page = await browser.new_page(viewport={'width': 1200, 'height': 900})
 
         try:
+            # Per-NE baseline tracker for display device output
+            _device_baselines = {}
+
             for idx, group in enumerate(grouped_segments):
                 html_content = template.render(blocks=group)
                 await page.set_content(html_content)
@@ -303,13 +307,30 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                 safe_device = sanitize_filename(device_name)
                 safe_first_cmd = sanitize_filename(first_cmd['command'])
 
+                # Baseline tracking for display device
+                removed_suffix = ''
+                if first_cmd['command'].strip().lower() == 'display device':
+                    try:
+                        parsed = parse_display_device(first_cmd['output'])
+                        if parsed:
+                            if safe_device not in _device_baselines:
+                                # First occurrence → establish baseline
+                                _device_baselines[safe_device] = parsed
+                            else:
+                                baseline = _device_baselines[safe_device]
+                                missing = compare_devices(baseline, parsed)
+                                if missing:
+                                    removed_suffix = ' ' + format_removed_suffix(missing)
+                    except Exception as e:
+                        print(f"⚠ Failed to parse display device for {safe_device}: {e}")
+
                 if len(group) == 1:
                     # Standalone command: "HW-Core-BKK-01 display device.png"
-                    filename = f"{safe_device} {safe_first_cmd}.png"
+                    filename = f"{safe_device} {safe_first_cmd}{removed_suffix}.png"
                 else:
                     # Nested block: "HW-Core-BKK-01 system-view interface GE0_0_1 display this quit quit.png"
                     safe_cmds = " ".join(sanitize_filename(seg['command']) for seg in group)
-                    filename = f"{safe_device} {safe_cmds}.png"
+                    filename = f"{safe_device} {safe_cmds}{removed_suffix}.png"
                 filepath = os.path.join(output_dir, filename)
 
                 await element.screenshot(path=filepath, type='png')

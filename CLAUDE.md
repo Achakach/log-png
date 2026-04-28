@@ -12,9 +12,27 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Inse
 - `_extract_device_name()` — Strips `~` and `*` prefixes, then sub-view suffixes from prompt using keyword list. Requires `idx > 2` to avoid false matches on short device names
 - `_group_segments()` — Depth-based grouping: standalone commands get own PNG, nested blocks (system-view + sub-views) become one PNG. Depth-0 segments after nested blocks fall through as standalone
 - `_finalize_group()` — Adds `prompt_raw` and `router` (sanitized filename) fields. HTML escaping is handled by Jinja2 autoescape, NOT here
-- `generate_screenshots()` — Async Playwright renderer with Jinja2 autoescape. Viewport 1200x900. **Nested block filenames concatenate all commands**: `{device} {cmd1} {cmd2} ... .png`
+- `generate_screenshots()` — Async Playwright renderer with Jinja2 autoescape. Viewport 1200x900. **Nested block filenames concatenate all commands**: `{device} {cmd1} {cmd2} ... .png`. Also handles baseline tracking for `display device` and `display alarm active` commands
 - `process_network_logs()` — Sync entry point. Detects existing event loop and uses ThreadPoolExecutor if needed (Jupyter compatibility)
 - `sanitize_filename()` — Strips only OS-invalid chars (`\/:*?"<>|`), preserves spaces and hyphens. `|` replaced with space. `/` replaced with `_` (e.g. `GigabitEthernet0/0/1` → `GigabitEthernet0_0_1`). Fallback `'unnamed'` for empty input, `max_length=200`
+
+### Display Device Baseline Tracker (`display_device_parser.py`)
+- `parse_display_device()` — Parses `display device` CLI output into card records `{slot, card, type_}`. Extracts table rows between dashed separators. Chassis line (card `-`) is included but typically ignored by callers
+- `compare_devices()` — Returns card names present in baseline but absent in current. Uses `(slot, card)` as unique key to handle same card name in multiple slots
+- `format_removed_suffix()` — Converts missing cards into filename suffix, e.g. `[FAN3 removed]` or `[FAN3 PWR1 removed]`
+- Integration: First `display device` per NE establishes baseline. Subsequent runs compare against baseline and append `[CARD removed]` to PNG filename if cards are missing
+
+### Display Alarm Active Baseline Tracker (`display_alarm_parser.py`)
+- `parse_display_alarm_active()` — Parses `display alarm active` CLI output. Extracts EntPhysicalName from Description column: `EntPhysicalName=FAN slot 1/3` → `FAN3`
+- `compare_alarms()` — Returns new card names (from EntPhysicalName) present in current but not in baseline. Uses `(alarm_id, card_name)` as unique key
+- `format_alarm_suffix()` — Converts new alarms into filename suffix, e.g. `[FAN3 removed]`
+- Integration: First `display alarm active` per NE establishes baseline. Subsequent runs compare and append `[CARD removed]` for new alarms caused by removed cards
+
+### Removed Device Test Folder (`removeddevicetest/`)
+- Created alongside `screenshots/` when baseline changes detected
+- Contains baseline copy + changed variant for easy review
+- **display device** missing cards: copies baseline `display device.png` + saves `[CARD removed].png`
+- **display alarm active** new alarms: copies baseline `display alarm active.png` + saves `[CARD removed].png`
 
 ### Word Inserter (`putpnginword.py`)
 - `parse_paragraphs()` — Extracts commands from all prompt lines in a Word table cell (both `<Router>cmd` and `[Router]cmd` formats). Skips empty prompts with no command (e.g., `[HUAWEI]`)
@@ -101,23 +119,29 @@ No randomness — every command runs exactly once, in a fixed order. No `target_
 
 ### Files
 ```
-process_network_logs.py   ← core engine (parse, group, screenshot)
-putpnginword.py           ← inserts PNGs into Word .docx (contiguous subsequence matching)
-run.py                    ← main entry point (reads logs/ → writes screenshots/)
-nested_log_gen.py         ← generates mock log (single NE, deterministic)
-example.txt               ← example of Word table cell format (single + nested)
-requirements.txt          ← jinja2, playwright, python-docx, pytest
-.gitignore                ← __pycache__, *.pyc, screenshots/, *.png
-README.md                 ← usage docs
-CLAUDE.md                 ← this file
-docs/                     ← design specs and implementation plans
+process_network_logs.py    ← core engine (parse, group, screenshot, baseline tracking)
+display_device_parser.py   ← parses display device output, compares baseline
+display_alarm_parser.py    ← parses display alarm active output, compares baseline
+putpnginword.py            ← inserts PNGs into Word .docx (contiguous subsequence matching)
+run.py                     ← main entry point (reads logs/ → writes screenshots/)
+nested_log_gen.py          ← generates mock log (single NE, deterministic)
+example.txt                ← example of Word table cell format (single + nested)
+requirements.txt           ← jinja2, playwright, python-docx, pytest
+.gitignore                 ← __pycache__, *.pyc, screenshots/, *.png
+README.md                  ← usage docs
+CLAUDE.md                  ← this file
+docs/                      ← design specs and implementation plans
   superpowers/
     specs/2026-04-23-putpnginword-fix-design.md
+    specs/2026-04-28-display-device-baseline-design.md
     plans/2026-04-23-putpnginword-fix.md
-tests/                    ← unit tests
-  test_putpnginword.py    ← tests for parsing, expansion, matching, dedup
-logs/                     ← input log files (.txt)
-screenshots/              ← output PNG files
+tests/                     ← unit tests
+  test_putpnginword.py     ← tests for parsing, expansion, matching, dedup
+  test_display_device_parser.py  ← tests for device parser, compare, suffix
+  test_display_alarm_parser.py   ← tests for alarm parser, compare, suffix
+logs/                      ← input log files (.txt)
+screenshots/               ← output PNG files
+removeddevicetest/         ← baseline + removed card/alarm PNGs for review
 ```
 
 ### Removed files
@@ -146,9 +170,14 @@ screenshots/              ← output PNG files
 - **Added `putpnginword.py` abbreviation expansion (2026-04-23):** `expand_abbreviations()` supports `system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit` with longest-match-first
 - **Fixed `putpnginword.py` empty prompt parsing (2026-04-23):** `parse_paragraphs()` now skips prompt-only lines with no commands (e.g. `[HUAWEI]`)
 - **Added unit tests (2026-04-23):** `tests/test_putpnginword.py` covers parsing, expansion, matching, and deduplication
+- **Added display device baseline tracking (2026-04-28):** `display_device_parser.py` detects missing cards and appends `[CARD removed]` suffix to PNG filenames. Copies baseline + removed variant to `removeddevicetest/`
+- **Added display alarm active baseline tracking (2026-04-28):** `display_alarm_parser.py` detects new alarms from removed cards via EntPhysicalName and appends `[CARD removed]` suffix. Copies baseline + alarm variant to `removeddevicetest/`
+- **Added `removeddevicetest/` folder (2026-04-28):** Stores baseline copy + changed PNG for easy review when cards are removed or new alarms appear
 
 ## Known Limitations
 - Only supports Huawei VRP format (`<Router>` / `[Router]` prompts). Cisco IOS is NOT supported
 - Regex may match output lines that resemble prompts if they start with `[` or `<` at column 0
 - `putpnginword.py` abbreviation dictionary is hardcoded; new abbreviations must be added to `_ABBREVIATIONS` manually
 - `putpnginword.py` paths and permit keywords are hardcoded constants at the top of the file
+- `display_alarm_parser.py` extracts EntPhysicalName only; alarms without EntPhysicalName are skipped
+- Baseline tracking is per-session only (not persisted to disk); if log files are processed separately, baselines are reset

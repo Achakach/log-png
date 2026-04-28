@@ -353,6 +353,17 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                             shutil.copy2(baseline_filepath, removed_baseline)
                             print(f"  Copied baseline to: {removed_baseline}")
 
+                    # Copy display alarm active if exists
+                    alarm_filename = f"{safe_device} display alarm active.png"
+                    alarm_filepath = os.path.join(output_dir, alarm_filename)
+                    if os.path.exists(alarm_filepath):
+                        alarm_basename = os.path.basename(alarm_filepath)
+                        removed_alarm = os.path.join(removed_dir, alarm_basename)
+                        if not os.path.exists(removed_alarm):
+                            import shutil
+                            shutil.copy2(alarm_filepath, removed_alarm)
+                            print(f"  Copied alarm active to: {removed_alarm}")
+
                     removed_filename = filename
                     removed_filepath = os.path.join(removed_dir, removed_filename)
                     await element.screenshot(path=removed_filepath, type='png')

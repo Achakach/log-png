@@ -35,12 +35,12 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Inse
 - **display alarm active** new alarms: copies baseline `display alarm active.png` + saves `[CARD removed].png`
 
 ### Word Inserter (`putpnginword.py`)
-- `parse_paragraphs()` — Extracts commands from all prompt lines in a Word table cell (both `<Router>cmd` and `[Router]cmd` formats). Skips empty prompts with no command (e.g., `[HUAWEI]`)
-- `parse_cell_nodes()` — Extracts device names from `<NodeName>` lines (no command after)
+- `parse_paragraphs_detailed()` — Same as `parse_paragraphs()` but returns paragraph indices for each node. Format: `(commands, [(node, para_idx), ...])`. Enables block-scoped insertion
+- `match_cell_blocks()` — **Option B** matching: each block's nodes are matched independently against that block's commands. Returns dicts with `node`, `block_idx`, `para_idx`, `commands`, `match_path`, `action` (`inserted` | `skipped_error` | `no_match`)
 - `expand_abbreviations()` — Expands CLI abbreviations before matching: `system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit`. Uses longest-match-first to avoid partial expansion
 - `find_best_match()` — Matches cell commands to PNG filenames using **contiguous subsequence matching** (case-insensitive). Requires the full command sequence from the cell to appear consecutively in the PNG filename. Missing trailing tokens (e.g. `quit`) are allowed. Device name must match exactly
 - `sanitize_filename()` — Same logic as `process_network_logs.py` for consistent filename handling
-- Main loop: iterates Word tables, parses cells, expands abbreviations, finds matching PNGs with deduplication (1 image per node per cell), inserts images at `<NodeName>` paragraphs
+- Main loop: Option B — iterates blocks independently. Same node can receive multiple images if it appears after different command blocks. Paragraph tracking via `para_idx` ensures correct insertion point
 - `PERMIT_FALSE_KEYWORDS` / `PERMIT_TRUE_KEYWORDS` — configurable constants to control which test cases get images
 
 ### Sub-view Keywords (used in `_extract_device_name` and `_prompt_depth`)
@@ -181,3 +181,4 @@ removeddevicetest/         ← baseline + removed card/alarm PNGs for review
 - `putpnginword.py` paths and permit keywords are hardcoded constants at the top of the file
 - `display_alarm_parser.py` extracts EntPhysicalName only; alarms without EntPhysicalName are skipped
 - Baseline tracking is per-session only (not persisted to disk); if log files are processed separately, baselines are reset
+- `putpnginword.py` now supports **Option B (block-scoped matching)**: same node can receive multiple images per cell (one per command block). Error preference and paragraph tracking via `para_idx`

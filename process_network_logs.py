@@ -8,6 +8,36 @@ from playwright.async_api import async_playwright
 from display_device_parser import parse_display_device, compare_devices, format_removed_suffix
 from display_alarm_parser import parse_display_alarm_active, compare_alarms, format_alarm_suffix
 
+# --- Huawei VRP Error Detection ---
+# Regex patterns that indicate the command output contains an error.
+# Each pattern MUST match at the start of a line (after optional whitespace).
+_ERROR_PATTERNS = [
+    re.compile(r'^\s*Error:\s*', re.IGNORECASE),
+    re.compile(r'^\s*%Error\s*', re.IGNORECASE),
+    re.compile(r'^\s*Warning:\s*', re.IGNORECASE),
+    re.compile(r'^\s*Unrecognized command', re.IGNORECASE),
+    re.compile(r'^\s*Ambiguous command', re.IGNORECASE),
+    re.compile(r'^\s*Incomplete command', re.IGNORECASE),
+    re.compile(r'^\s*Wrong parameter', re.IGNORECASE),
+    re.compile(r'^\s*Not enough privilege', re.IGNORECASE),
+    re.compile(r'^\s*Failed to', re.IGNORECASE),
+    re.compile(r'^\s*Not supported', re.IGNORECASE),
+    re.compile(r'^\s*This command is', re.IGNORECASE),
+]
+
+
+def _has_error_in_output(output_text: str) -> bool:
+    """Scan command output for Huawei VRP error/warning markers.
+
+    Returns True if any line matches known error/warning patterns.
+    """
+    for line in output_text.splitlines():
+        for pattern in _ERROR_PATTERNS:
+            if pattern.search(line):
+                return True
+    return False
+
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -350,13 +380,21 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                     except Exception as e:
                         print(f"⚠ Failed to parse display alarm active for {safe_device}: {e}")
 
+                # --- Error detection ---
+                # Scan the entire group for any command that returned an error
+                has_error = any(
+                    _has_error_in_output(seg['output'])
+                    for seg in group
+                )
+                error_suffix = ' [error]' if has_error else ''
+
                 if len(group) == 1:
                     # Standalone command: "HW-Core-BKK-01 display device.png"
-                    filename = f"{safe_device} {safe_first_cmd}{removed_suffix}{alarm_suffix}.png"
+                    filename = f"{safe_device} {safe_first_cmd}{removed_suffix}{alarm_suffix}{error_suffix}.png"
                 else:
                     # Nested block: "HW-Core-BKK-01 system-view interface GE0_0_1 display this quit quit.png"
                     safe_cmds = " ".join(sanitize_filename(seg['command']) for seg in group)
-                    filename = f"{safe_device} {safe_cmds}{removed_suffix}{alarm_suffix}.png"
+                    filename = f"{safe_device} {safe_cmds}{removed_suffix}{alarm_suffix}{error_suffix}.png"
                 filepath = os.path.join(output_dir, filename)
 
                 await element.screenshot(path=filepath, type='png')

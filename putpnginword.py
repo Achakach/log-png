@@ -6,9 +6,9 @@ from docx.shared import Inches
 
 
 # --- Configuration ---
-DOCX_INPUT = r"test_document_v3.docx"
+DOCX_INPUT = r"testthisplease.docx"
 PNG_PATH = r"screenshots\*.png"
-DOCX_OUTPUT = "test_document_v3_with_png.docx"
+DOCX_OUTPUT = "testthisplease_RESULT_v5.docx"
 
 
 # --- Section Filtering ---
@@ -188,6 +188,177 @@ def parse_paragraphs(paragraphs):
     return blocks
 
 
+def parse_paragraphs_detailed(paragraphs):
+    """Extract command blocks and node names from cell paragraphs.
+
+    Same logic as parse_paragraphs(), but returns paragraph indices for each node.
+
+    Returns list of (commands, [(node, para_idx), ...]) tuples.
+    """
+    blocks = []
+    current_commands = []
+    nodes = []  # [(node_name, para_idx), ...]
+
+    PROMPT_ONLY_RE = re.compile(
+        r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*$'
+    )
+
+    for para_idx, para in enumerate(paragraphs):
+        for line in para.text.split('\n'):
+            text = line.strip()
+            if not text:
+                continue
+
+            m = NODE_LINE_RE.match(text)
+            if m:
+                nodes.append((m.group(1), para_idx))
+                continue
+
+            if PROMPT_ONLY_RE.match(text):
+                continue
+
+            m = PROMPT_LINE_RE.match(text)
+            if m:
+                cmd = m.group(2).strip()
+                prompt = m.group(1)
+                if not cmd:
+                    continue
+
+                if (prompt.startswith('<') and
+                        not prompt.startswith('<~') and
+                        not prompt.startswith('<*') and
+                        current_commands):
+                    blocks.append((current_commands, nodes))
+                    current_commands = []
+                    nodes = []
+
+                current_commands.append(cmd)
+
+    if current_commands:
+        blocks.append((current_commands, nodes))
+
+    return blocks
+
+
+def _merge_empty_blocks(blocks):
+    """Merge empty standalone blocks into the next block with nodes.
+    
+    If a block has commands but NO nodes, prepend its commands to the NEXT
+    block that has nodes. Blocks that already have nodes are untouched.
+    """
+    if not blocks:
+        return blocks
+
+    merged = []
+    pending_commands = []
+
+    for bi, (commands, nodes) in enumerate(blocks):
+        if not commands:
+            continue
+
+        if nodes:
+            if pending_commands:
+                merged_commands = pending_commands + commands
+                merged.append((merged_commands, nodes))
+                pending_commands = []
+            else:
+                merged.append((commands, nodes))
+        else:
+            pending_commands.extend(commands)
+
+    return merged
+
+
+def match_cell_blocks(paragraphs, png_files):
+    """Match PNGs to command blocks for a single cell (Option B + empty block merge).
+
+    Empty standalone blocks (no nodes) are merged into the next block with nodes.
+    For merged blocks, each node tries each command individually until finding
+    a non-error match.
+    Returns list of dicts: {
+        'node': str,
+        'block_idx': int,
+        'para_idx': int,
+        'commands': list[str],
+        'match_path': str | None,
+        'action': 'inserted' | 'skipped_error' | 'no_match',
+    }
+    """
+    blocks = parse_paragraphs_detailed(paragraphs)
+    
+    # Check if any merge happened
+    original_blocks = blocks[:]
+    blocks = _merge_empty_blocks(blocks)
+    was_merged = len(blocks) < len(original_blocks)
+    
+    results = []
+
+    for block_idx, (commands, block_nodes) in enumerate(blocks):
+        if not commands or not block_nodes:
+            continue
+
+        expanded_commands = expand_abbreviations(commands)
+
+        for node, para_idx in block_nodes:
+            png_match = None
+            best_commands = None
+            
+            if was_merged:
+                # For merged blocks, try each command individually
+                for i in range(len(expanded_commands)):
+                    single_cmd = expanded_commands[i]
+                    match = find_best_match(node, [single_cmd], png_files)
+                    if not match:
+                        continue
+                    
+                    has_error = '[error]' in os.path.basename(match).lower()
+                    if not has_error:
+                        png_match = match
+                        best_commands = [single_cmd]
+                        break
+                    elif png_match is None:
+                        # Remember first error match as fallback
+                        png_match = match
+                        best_commands = [single_cmd]
+            else:
+                # Normal block matching (full command sequence)
+                png_match = find_best_match(node, expanded_commands, png_files)
+                best_commands = expanded_commands
+
+            if not png_match:
+                results.append({
+                    'node': node,
+                    'block_idx': block_idx,
+                    'para_idx': para_idx,
+                    'commands': expanded_commands,
+                    'match_path': None,
+                    'action': 'no_match',
+                })
+                continue
+
+            has_error = '[error]' in os.path.basename(png_match).lower()
+            if has_error:
+                results.append({
+                    'node': node,
+                    'block_idx': block_idx,
+                    'para_idx': para_idx,
+                    'commands': best_commands or expanded_commands,
+                    'match_path': png_match,
+                    'action': 'skipped_error',
+                })
+            else:
+                results.append({
+                    'node': node,
+                    'block_idx': block_idx,
+                    'para_idx': para_idx,
+                    'commands': best_commands or expanded_commands,
+                    'match_path': png_match,
+                    'action': 'inserted',
+                })
+
+    return results
+
+
 def find_best_match(device: str, commands: list[str], png_files: list[str]) -> str | None:
     """Find the PNG whose filename matches the exact command sequence.
 
@@ -219,6 +390,7 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
         return None
 
     best_match = None
+    current_best_score = None
 
     for png_path in png_files:
         png_name = os.path.basename(png_path).replace('.png', '').lower()
@@ -230,14 +402,20 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
 
         # Strip trailing 'quit' from PNG tokens (PNG side)
         png_cmd_tokens = png_tokens[1:]
-        while png_cmd_tokens and png_cmd_tokens[-1] == 'quit':
+        while png_cmd_tokens and png_cmd_tokens[-1] in ('quit', '[error]'):
             png_cmd_tokens.pop()
 
         # Exact match required
         if png_cmd_tokens == cmd_tokens:
-            # Prefer shorter filenames on tie (fewer extra commands)
-            if best_match is None or len(png_tokens) < len(os.path.basename(best_match).replace('.png', '').lower().split()):
+            # Scoring: prefer non-error over error, then prefer shorter filenames
+            is_error = '[error]' in png_name
+            score = (
+                0 if not is_error else 1,   # Non-error wins
+                len(png_tokens)              # Then shorter wins
+            )
+            if best_match is None or score < current_best_score:
                 best_match = png_path
+                current_best_score = score
 
     return best_match
 
@@ -287,60 +465,42 @@ if __name__ == "__main__":
                 if not permit:
                     continue
 
-                # Parse cell paragraphs into command blocks
-                blocks = parse_paragraphs(cell.paragraphs)
+                # Option B: Block-scoped node matching
+                match_results = match_cell_blocks(cell.paragraphs, png_files)
 
-                # Collect all nodes from all blocks (cell-wide)
-                all_nodes = set()
-                for _, block_nodes in blocks:
-                    all_nodes.update(block_nodes)
-
-                if not blocks or not all_nodes:
+                if not match_results:
                     continue
 
-                # Track inserted nodes per cell to prevent duplicates
-                inserted_nodes = set()
-                search_start_idx = 0
+                # Track inserted paragraphs to prevent double-insertion
+                inserted_paragraphs = set()
 
-                # For each node, try each command block until match found
-                for node in all_nodes:
-                    if node in inserted_nodes:
+                for result in match_results:
+                    if result['action'] != 'inserted':
+                        if result['action'] == 'skipped_error':
+                            print(f"  Skipped (error): {result['node']} block {result['block_idx']}")
+                        else:
+                            print(f"  No match: {result['node']} block {result['block_idx']}")
                         continue
 
-                    matched = False
-                    for commands, _ in blocks:
-                        if not commands:
-                            continue
+                    para_idx = result['para_idx']
+                    if para_idx in inserted_paragraphs:
+                        continue  # Safety: don't double-insert
 
-                        expanded_commands = expand_abbreviations(commands)
-                        png_match = find_best_match(node, expanded_commands, png_files)
-                        if not png_match:
-                            continue
+                    paragraph = cell.paragraphs[para_idx]
+                    match_path = result['match_path']
+                    commands = result['commands']
 
-                        # Insert image at the next unused <NodeName> paragraph
-                        for para_idx, paragraph in enumerate(cell.paragraphs):
-                            if para_idx < search_start_idx:
-                                continue
-                            if f'<{node}>' in paragraph.text:
-                                paragraph.paragraph_format.first_line_indent = 0
-                                paragraph.paragraph_format.left_indent = 0
-                                run = paragraph.add_run()
-                                run.add_break()
-                                run.add_break()
-                                run = paragraph.add_run()
-                                run.add_picture(png_match, width=Inches(6.495))
-                                print(f"  Inserted: {os.path.basename(png_match)}")
-                                print(f"    Command: {' '.join(expanded_commands)}")
-                                inserted_nodes.add(node)
-                                search_start_idx = para_idx + 1
-                                matched = True
-                                break
-
-                        if matched:
-                            break
-
-                    if not matched:
-                        print(f"  No match: {node}")
+                    paragraph.paragraph_format.first_line_indent = 0
+                    paragraph.paragraph_format.left_indent = 0
+                    run = paragraph.add_run()
+                    run.add_break()
+                    run.add_break()
+                    run = paragraph.add_run()
+                    run.add_picture(match_path, width=Inches(6.495))
+                    print(f"  Inserted: {os.path.basename(match_path)}")
+                    print(f"    Node: {result['node']}, Block: {result['block_idx']}")
+                    print(f"    Command: {' '.join(commands)}")
+                    inserted_paragraphs.add(para_idx)
 
     document.save(DOCX_OUTPUT)
     print(f"\nSaved: {DOCX_OUTPUT}")

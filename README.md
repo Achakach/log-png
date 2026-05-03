@@ -4,6 +4,11 @@
 
 ## Version
 
+**1.1.0** — 2026-05-02
+
+- Implemented Option B (block-scoped node matching): same node can now receive multiple images when it appears after different command blocks in the same cell
+- Added error detection and preference: PNGs with `[error]` suffix are skipped in favor of clean PNGs
+
 **1.0.0** — 2026-04-21
 
 Converts Huawei VRP CLI log files into terminal-style PNG screenshots for use in documentation, reports, or audits.
@@ -215,14 +220,15 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
    - รองรับ cell ที่ไม่มี `quit` (match แค่ส่วนที่ cell มี)
    - ป้องกัน false positive (เช่น `system-view set cpu` จะไม่ match กับ `system-view display current-config`)
 4. **แทรกรูป** ลงที่ `<NodeName>` paragraph แรกที่เจอใน cell (กว้าง 6.495 นิ้ว)
-   - 1 node = 1 รูป ต่อ cell (deduplication)
+   - **Option B (block-scoped):** แต่ละ command block "เป็นเจ้าของ" nodes ที่อยู่หลังจากนั้น หาก node เดียวกันปรากฏหลังหลาย block จะได้รับหลายรูป (หนึ่งรูปต่อ block)
+   - Deduplication เป็นระดับ paragraph (ไม่ใช่ระดับ cell) เพื่อป้องกันการแทรกซ้ำที่ paragraph เดียวกัน
 
 ### รูปแบบ Cell ที่รองรับ
 
 **Single command:**
 ```
 <HUAWEI>display device
-<TUC-TYB91G01HWLEFC303-CPLEF03>    ← แทรกรูปตรงนี้
+<TUC-TYB91G01HWLEFC303-CPLEF03>    ← แทรกรูปตรงนี้ (1 รูป)
 ```
 
 **Nested command:**
@@ -232,7 +238,18 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
 [~HUAWEI-GE0/0/29]display this
 [~HUAWEI-GE0/0/29]quit
 [~HUAWEI]quit
-<TUC-TYB91G01HWLEFC303-CPLEF03>    ← แทรกรูปตรงนี้
+<TUC-TYB91G01HWLEFC303-CPLEF03>    ← แทรกรูปตรงนี้ (1 รูป)
 ```
+
+**Multiple blocks per cell (Option B):**
+```
+<HUAWEI>cmd 7
+<device1>                             ← แทรกรูป cmd 7 ตรงนี้
+<device2>                             ← แทรกรูป cmd 7 ตรงนี้
+<HUAWEI>cmd 8
+<device1>                             ← แทรกรูป cmd 8 ตรงนี้
+<device2>                             ← แทรกรูป cmd 8 ตรงนี้
+```
+รวม 4 รูปใน cell เดียว (device1 × 2, device2 × 2)
 
 **หมายเหตุ:** Prompt (`<HUAWEI>`, `[~HUAWEI]`, `[~HUAWEI-GE0/0/29]`) ไม่มีผลต่อการ match — ดึงเฉพาะส่วน command

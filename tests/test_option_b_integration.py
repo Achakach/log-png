@@ -28,7 +28,7 @@ def test_parse_detailed_returns_para_indices():
         MockParagraph('<TUC-NODE1>'),
     ]
     blocks = parse_paragraphs_detailed(paragraphs)
-    assert blocks == [(['system-view'], [('TUC-NODE1', 1)])]
+    assert blocks == [(['system-view'], [('TUC-NODE1', 1)], False)]
 
 
 def test_parse_detailed_multiple_blocks():
@@ -42,8 +42,8 @@ def test_parse_detailed_multiple_blocks():
     ]
     blocks = parse_paragraphs_detailed(paragraphs)
     assert len(blocks) == 2
-    assert blocks[0] == (['cmd 7'], [('device1', 1), ('device2', 2)])
-    assert blocks[1] == (['cmd 8'], [('device1', 4), ('device2', 5)])
+    assert blocks[0] == (['cmd 7'], [('device1', 1), ('device2', 2)], False)
+    assert blocks[1] == (['cmd 8'], [('device1', 4), ('device2', 5)], False)
 
 
 def test_parse_detailed_para_indices_correct():

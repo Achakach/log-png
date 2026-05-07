@@ -35,12 +35,14 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Inse
 - **display alarm active** new alarms: copies baseline `display alarm active.png` + saves `[CARD removed].png`
 
 ### Word Inserter (`putpnginword.py`)
+- `parse_paragraphs()` — Extracts commands and nodes from cell paragraphs. Returns `(commands, [nodes])` tuples. Splits on standalone user-view `<Router>cmd` after nested blocks
 - `parse_paragraphs_detailed()` — Same as `parse_paragraphs()` but returns paragraph indices for each node. Format: `(commands, [(node, para_idx), ...])`. Enables block-scoped insertion
-- `match_cell_blocks()` — **Option B** matching: each block's nodes are matched independently against that block's commands. Returns dicts with `node`, `block_idx`, `para_idx`, `commands`, `match_path`, `action` (`inserted` | `skipped_error` | `no_match`)
+- `_merge_empty_blocks()` — **Empty Block Merge**: If a standalone block has no nodes, prepend its commands to the next block with nodes. This creates a "command pool" where all bottom nodes can try all commands
+- `match_cell_blocks()` — **Option B** matching: each block's nodes are matched independently. For merged blocks, each node tries commands individually until finding a non-error match. Returns dicts with `node`, `block_idx`, `para_idx`, `commands`, `match_path`, `action` (`inserted` | `skipped_error` | `no_match`)
 - `expand_abbreviations()` — Expands CLI abbreviations before matching: `system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit`. Uses longest-match-first to avoid partial expansion
 - `find_best_match()` — Matches cell commands to PNG filenames using **contiguous subsequence matching** (case-insensitive). Requires the full command sequence from the cell to appear consecutively in the PNG filename. Missing trailing tokens (e.g. `quit`) are allowed. Device name must match exactly
 - `sanitize_filename()` — Same logic as `process_network_logs.py` for consistent filename handling
-- Main loop: Option B — iterates blocks independently. Same node can receive multiple images if it appears after different command blocks. Paragraph tracking via `para_idx` ensures correct insertion point
+- Main loop: Option B + Empty Block Merge — iterates blocks independently. Merged blocks try each command per device until first non-error match. Same node can receive multiple images if it appears after different command blocks. Paragraph tracking via `para_idx` ensures correct insertion point
 - `PERMIT_FALSE_KEYWORDS` / `PERMIT_TRUE_KEYWORDS` — configurable constants to control which test cases get images
 
 ### Sub-view Keywords (used in `_extract_device_name` and `_prompt_depth`)
@@ -115,7 +117,7 @@ No randomness — every command runs exactly once, in a fixed order. No `target_
 - `putpnginword.py` uses word-by-word prefix matching — prompt text in Word cells is ignored, only the command portion is extracted and matched against PNG filenames
 - `putpnginword.py` paths (`DOCX_INPUT`, `PNG_PATH`, `DOCX_OUTPUT`) and permit keywords are hardcoded constants at the top of the file — adjust per document
 
-## Current Project State (2026-04-23)
+## Current Project State (2026-05-04)
 
 ### Files
 ```
@@ -173,6 +175,11 @@ removeddevicetest/         ← baseline + removed card/alarm PNGs for review
 - **Added display device baseline tracking (2026-04-28):** `display_device_parser.py` detects missing cards and appends `[CARD removed]` suffix to PNG filenames. Copies baseline + removed variant to `removeddevicetest/`
 - **Added display alarm active baseline tracking (2026-04-28):** `display_alarm_parser.py` detects new alarms from removed cards via EntPhysicalName and appends `[CARD removed]` suffix. Copies baseline + alarm variant to `removeddevicetest/`
 - **Added `removeddevicetest/` folder (2026-04-28):** Stores baseline copy + changed PNG for easy review when cards are removed or new alarms appear
+- **Implemented Option B (2026-05-02):** Block-scoped node matching. Same node can receive multiple images when appearing after different command blocks. 93 tests pass.
+- **Implemented Empty Block Merge (2026-05-02):** Empty standalone blocks merge into next block with nodes. Bottom nodes try all commands in pool. Requires `[ERROR]` PNGs for wrong command+device combos.
+- **Implemented Error Preference (2026-05-02):** `[ERROR]` PNGs are skipped in favor of clean PNGs. First non-error match wins.
+- **Added `test_option_b_integration.py` (2026-05-02):** 8 tests for block-scoped matching and paragraph tracking.
+- **Added `test_multi_block_preference.py` (2026-05-02):** 4 tests for error preference across multiple blocks.
 
 ## Known Limitations
 - Only supports Huawei VRP format (`<Router>` / `[Router]` prompts). Cisco IOS is NOT supported
@@ -181,4 +188,5 @@ removeddevicetest/         ← baseline + removed card/alarm PNGs for review
 - `putpnginword.py` paths and permit keywords are hardcoded constants at the top of the file
 - `display_alarm_parser.py` extracts EntPhysicalName only; alarms without EntPhysicalName are skipped
 - Baseline tracking is per-session only (not persisted to disk); if log files are processed separately, baselines are reset
-- `putpnginword.py` now supports **Option B (block-scoped matching)**: same node can receive multiple images per cell (one per command block). Error preference and paragraph tracking via `para_idx`
+- **Multi-model / empty block merge** depends on `[ERROR]` PNGs to filter wrong command+device matches. If `[ERROR]` is missing, the code may insert the wrong image (arbitrary first match)
+- **User tracking** (username, login session) is NOT implemented — cannot track which user ran which command

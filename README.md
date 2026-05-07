@@ -2,6 +2,32 @@
 
 แปลง Huawei VRP CLI log file เป็น PNG screenshot สไตล์ terminal เพื่อใช้ใน documentation, report, หรือ audit
 
+## Prerequisites
+
+ก่อนใช้งานต้องมีสิ่งต่อไปนี้:
+
+| สิ่งที่ต้องมี | เวอร์ชันขั้นต่ำ | ใช้สำหรับ |
+|---|---|---|
+| **Python** | 3.10+ | รัน script ทั้งหมด |
+| **pip** | ล่าสุด | ติดตั้ง dependencies |
+| **Chromium** | ล่าสุด | Playwright ใช้ render HTML → PNG (ติดตั้งผ่าน `playwright install chromium`) |
+| **Huawei VRP log** | - | ไฟล์ `.txt` ที่มี prompt format `<Router>` หรือ `[Router]` |
+
+### ขั้นตอนติดตั้ง
+
+```bash
+pip install -r requirements.txt
+playwright install chromium
+```
+
+### Dependencies หลัก
+
+| Package | ใช้สำหรับ |
+|---------|----------|
+| `jinja2` | HTML template rendering |
+| `playwright` | Headless Chromium screenshot |
+| `python-docx` | Word document manipulation |
+
 ## Version
 
 **1.1.0** — 2026-05-02
@@ -82,25 +108,10 @@ group → Jinja2 autoescape render → HTML → Playwright set_content → scree
 
 ## การติดตั้ง
 
-### Prerequisites
-- **Python 3.10+**
-- **pip** (Python package manager)
-
-### ติดตั้ง dependencies
-
 ```bash
 pip install -r requirements.txt
 playwright install chromium
 ```
-
-### รายการ dependencies
-
-| Package | ใช้สำหรับ | ติดตั้งอัตโนมัติ |
-|---------|----------|------------|
-| `jinja2` | HTML template rendering (autoescape เปิดอยู่) | ผ่าน `pip install -r requirements.txt` |
-| `playwright` | Headless Chromium screenshot capture | ผ่าน `pip install -r requirements.txt` |
-| `python-docx` | Word document manipulation (`putpnginword.py`) | ผ่าน `pip install -r requirements.txt` |
-| Chromium browser | Playwright ใช้ render HTML → PNG | ผ่าน `playwright install chromium` (รันทีเดียว) |
 
 ## วิธีใช้
 
@@ -214,6 +225,7 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
 
 1. **อ่านตาราง** ใน Word document → แต่ละ cell หา prompt+command lines และ node names
    - ข้าม prompt เปล่าที่ไม่มีคำสั่ง (เช่น `[HUAWEI]`)
+   - ข้าม model label เช่น `CEx01`, `CEx02` (ไม่มีผลต่อการ match)
 2. **ขยายคำย่อ** ก่อนจับคู่ (`system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit`)
 3. **จับคู่** ชื่อไฟล์ PNG ด้วย contiguous subsequence matching (case-insensitive)
    - คำสั่งทั้งหมดใน cell ต้องปรากฏติดกันเป็นชุดในชื่อไฟล์ PNG
@@ -221,6 +233,8 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
    - ป้องกัน false positive (เช่น `system-view set cpu` จะไม่ match กับ `system-view display current-config`)
 4. **แทรกรูป** ลงที่ `<NodeName>` paragraph แรกที่เจอใน cell (กว้าง 6.495 นิ้ว)
    - **Option B (block-scoped):** แต่ละ command block "เป็นเจ้าของ" nodes ที่อยู่หลังจากนั้น หาก node เดียวกันปรากฏหลังหลาย block จะได้รับหลายรูป (หนึ่งรูปต่อ block)
+   - **Empty Block Merge:** หาก standalone block ใด block หนึ่งไม่มี node (เช่น `CEx01` อยู่บรรทัดเดียวกับคำสั่งแต่ไม่มี node ตามหลัง) block ว่างจะถูก merge เข้ากับ block ถัดไปที่มี node ทำให้ทุก node สามารถลอง match กับทุกคำสั่งใน pool
+   - **Error Preference:** หากพบ PNG ที่มี `[error]` จะถูก skip และลองคำสั่งถัดไปจนกว่าจะเจอ PNG ที่ไม่มี error
    - Deduplication เป็นระดับ paragraph (ไม่ใช่ระดับ cell) เพื่อป้องกันการแทรกซ้ำที่ paragraph เดียวกัน
 
 ### รูปแบบ Cell ที่รองรับ
@@ -252,4 +266,22 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
 ```
 รวม 4 รูปใน cell เดียว (device1 × 2, device2 × 2)
 
-**หมายเหตุ:** Prompt (`<HUAWEI>`, `[~HUAWEI]`, `[~HUAWEI-GE0/0/29]`) ไม่มีผลต่อการ match — ดึงเฉพาะส่วน command
+**Multi-model with empty block merge (e.g. different device models):**
+```
+CEx01                                ← model label (ignored)
+<HUAWEI>display cpu-usage            ← command for model CEx01
+CEx02                                ← model label (ignored)
+<HUAWEI>display cpu                 ← command for model CEx02
+<TUC-TEST01>                        ← device 1
+tries: cpu-usage → match.png ✅ → INSERT
+       cpu       → skipped (already inserted)
+<TUC-TEST02>                        ← device 2
+tries: cpu-usage → [error].png ❌ → SKIP
+       cpu       → match.png ✅ → INSERT
+```
+ผลลัพธ์: device1 ได้ cpu-usage, device2 ได้ cpu (โดยใช้ [ERROR] เป็นตัวกรอง)
+
+**หมายเหตุ:** 
+- Prompt (`<HUAWEI>`, `[~HUAWEI]`, `[~HUAWEI-GE0/0/29]`) ไม่มีผลต่อการ match — ดึงเฉพาะส่วน command
+- บรรทัดที่ไม่ใช่ prompt+command และไม่ใช่ `<NodeName>` (เช่น `CEx01`) จะถูกข้ามโดยอัตโนมัติ
+- Empty block merge ใช้ได้เฉพาะกับ **standalone commands** (ไม่มี `system-view` หรือ sub-view)

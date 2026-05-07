@@ -1,3 +1,4 @@
+import datetime
 import re
 import asyncio
 import os
@@ -26,16 +27,48 @@ _ERROR_PATTERNS = [
 ]
 
 
+# --- Output Limiting ---
+# Maximum number of output lines to render per screenshot.
+# Longer outputs are truncated with "... (X lines omitted) ..." marker.
+# This keeps PNG size reasonable (approx 1 A4 page in Word).
+_MAX_OUTPUT_LINES = 70
+
+
 def _has_error_in_output(output_text: str) -> bool:
     """Scan command output for Huawei VRP error/warning markers.
 
     Returns True if any line matches known error/warning patterns.
     """
+    if not output_text:
+        return False
     for line in output_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
         for pattern in _ERROR_PATTERNS:
-            if pattern.search(line):
+            if pattern.match(line):
                 return True
     return False
+
+
+# --- Username Extraction for SSH Sessions ---
+_USERNAME_RE = re.compile(r'\busername\s*:\s*(\S+)', re.IGNORECASE)
+
+
+def _extract_username(group: list[dict]) -> str | None:
+    """Scan merged group output for username prompts.
+
+    Looks for patterns like 'please input the username: kacha1',
+    'Username: admin', etc. within the SSH session output.
+    Returns the first username found, or None if not found.
+    """
+    for seg in group:
+        output = seg.get('output', '')
+        for line in output.splitlines():
+            match = _USERNAME_RE.search(line.strip())
+            if match:
+                return match.group(1)
+    return None
 
 
 HTML_TEMPLATE = """
@@ -54,7 +87,8 @@ HTML_TEMPLATE = """
             width: 1000px;
             box-sizing: border-box;
             font-family: 'Fira Code', 'Courier New', monospace;
-            line-height: 1.5;
+            font-size: 12px;
+            line-height: 1.3;
             color: #ffffff;
             overflow-wrap: break-word;
             word-wrap: break-word;
@@ -98,7 +132,7 @@ def _split_into_segments(log_content: str) -> list[dict]:
     # followed by the command text on the rest of that line,
     # then everything up to the next prompt line (or end of input).
     prompt_re = re.compile(
-        r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s+(.+)$',
+        r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*(.+)$',
         re.MULTILINE
     )
 
@@ -239,23 +273,61 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
             groups.append(_finalize_group(current))
             current = []
 
-    # Finalize any remaining group
-    if current:
-        groups.append(_finalize_group(current))
+    # Post-process: merge consecutive groups when previous block was ssh/stelnet
+    # and current block is on a different device
+    if groups:
+        merged = []
+        prev_group = groups[0]
+        for i in range(1, len(groups)):
+            curr_group = groups[i]
+            prev_last_seg = prev_group[-1]
+            curr_first_seg = curr_group[0]
+            # Check if prev seg was stelnet/ssh to another device
+            prev_device = _extract_device_name(prev_last_seg['prompt'])
+            curr_device = _extract_device_name(curr_first_seg['prompt'])
+            prev_cmd = prev_last_seg['command'].strip().lower()
+            if prev_device != curr_device and prev_cmd.startswith(('stelnet', 'ssh', 'telnet')):
+                # Same visual session → merge
+                prev_group = prev_group + curr_group
+            else:
+                merged.append(prev_group)
+                prev_group = curr_group
+        merged.append(prev_group)
+        groups = merged
 
     return groups
 
 
+_truncated_commands_log = []
+
+
 def _finalize_group(group: list[dict]) -> list[dict]:
-    """Add sanitized filenames to a group of segments. HTML escaping is handled by Jinja2 autoescape."""
+    """Add sanitized filenames to a group of segments and truncate long outputs."""
     finalized = []
     for seg in group:
+        original_output = seg['output']
+        lines = original_output.splitlines()
+        output = original_output
+        if len(lines) > _MAX_OUTPUT_LINES:
+            remaining = len(lines) - _MAX_OUTPUT_LINES
+            _truncated_commands_log.append({
+                'device': _extract_device_name(seg['prompt']),
+                'command': seg['command'],
+                'total_lines': len(lines),
+                'kept_lines': _MAX_OUTPUT_LINES,
+                'omitted_lines': remaining,
+                'full_output': original_output,
+            })
+            lines = lines[:_MAX_OUTPUT_LINES]
+            lines.append(f'')
+            lines.append(f'... ({remaining} lines omitted) ...')
+            output = '\n'.join(lines)
         finalized.append({
             'prompt': seg['prompt'],
             'prompt_raw': seg['prompt'],
             'router': sanitize_filename(seg['prompt']),
             'command': seg['command'],
-            'output': seg['output'],
+            'output': output,
         })
     return finalized
 
@@ -338,8 +410,19 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                 await page.set_content(html_content)
                 element = await page.wait_for_selector('#capture-area')
 
+                # For merged SSH groups, find the last display command as terminal command
+                terminal_cmd = None
+                for seg in reversed(group):
+                    cmd_lower = seg['command'].strip().lower()
+                    if cmd_lower.startswith(('dis', 'display')):
+                        terminal_cmd = seg
+                        break
+                if not terminal_cmd:
+                    terminal_cmd = group[0]
+
                 first_cmd = group[0]
-                device_name = _extract_device_name(first_cmd['prompt_raw'])
+                # Use terminal command's device for the filename (not SSH source)
+                device_name = _extract_device_name(terminal_cmd['prompt_raw'])
                 safe_device = sanitize_filename(device_name)
                 safe_first_cmd = sanitize_filename(first_cmd['command'])
 
@@ -388,13 +471,31 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                 )
                 error_suffix = ' [error]' if has_error else ''
 
+                # For merged groups where the first command is SSH/stelnet/telnet
+                # and the terminal command is a display/dis command,
+                # use only the terminal command for the filename.
+                is_ssh_merged = (
+                    first_cmd['command'].strip().lower().startswith(('stelnet', 'ssh', 'telnet'))
+                    and terminal_cmd is not first_cmd
+                )
+
+                # Extract username from SSH session output (if any)
+                username = None
+                if is_ssh_merged:
+                    username = _extract_username(group)
+                username_suffix = f' username {username}' if username else ''
+
                 if len(group) == 1:
                     # Standalone command: "HW-Core-BKK-01 display device.png"
-                    filename = f"{safe_device} {safe_first_cmd}{removed_suffix}{alarm_suffix}{error_suffix}.png"
+                    filename_cmd = safe_first_cmd
+                elif is_ssh_merged:
+                    # Merged SSH session: use terminal display command for filename
+                    filename_cmd = sanitize_filename(terminal_cmd['command'])
                 else:
                     # Nested block: "HW-Core-BKK-01 system-view interface GE0_0_1 display this quit quit.png"
-                    safe_cmds = " ".join(sanitize_filename(seg['command']) for seg in group)
-                    filename = f"{safe_device} {safe_cmds}{removed_suffix}{alarm_suffix}{error_suffix}.png"
+                    filename_cmd = " ".join(sanitize_filename(seg['command']) for seg in group)
+                
+                filename = f"{safe_device} {filename_cmd}{removed_suffix}{alarm_suffix}{username_suffix}{error_suffix}.png"
                 filepath = os.path.join(output_dir, filename)
 
                 await element.screenshot(path=filepath, type='png')
@@ -465,7 +566,47 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
         finally:
             await browser.close()
 
+        # Write truncated commands log if any were truncated
+        _write_truncated_log(output_dir)
+
     return results
+
+
+def _write_truncated_log(output_dir: str):
+    """Write truncated commands to a text file and full-output .txt files if any exist."""
+    global _truncated_commands_log
+    if not _truncated_commands_log:
+        return
+
+    log_path = os.path.join(output_dir, 'truncated_commands.txt')
+    mode = 'a' if os.path.exists(log_path) else 'w'
+    with open(log_path, mode, encoding='utf-8') as f:
+        if mode == 'w':
+            f.write("# Truncated Commands Log\n")
+            f.write(f"# Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        for entry in _truncated_commands_log:
+            f.write(f"{entry['device']} {entry['command']}\n")
+            f.write(f"  Total lines: {entry['total_lines']}\n")
+            f.write(f"  Kept lines: {entry['kept_lines']}\n")
+            f.write(f"  Omitted lines: {entry['omitted_lines']}\n")
+            f.write(f"  Output: {entry['device']} {entry['command']}.png\n")
+            f.write("\n")
+    print(f"\nTruncated commands log saved to: {log_path}")
+
+    # Write individual .txt files with full output for each truncated command
+    for entry in _truncated_commands_log:
+        safe_device = sanitize_filename(entry['device'])
+        safe_cmd = sanitize_filename(entry['command'])
+        txt_filename = f"{safe_device} {safe_cmd}.txt"
+        txt_path = os.path.join(output_dir, txt_filename)
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            device = entry['device']
+            command = entry['command']
+            f.write(f"<{device}>{command}\n")
+            f.write(entry['full_output'])
+        print(f"  Full output saved to: {txt_path}")
+
+    _truncated_commands_log = []  # Clear after writing
 
 
 def process_network_logs(log_content: str, output_dir: str = ".") -> list[dict]:

@@ -1,14 +1,19 @@
 import re
 import os
 import glob
+import shutil
+import uuid
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Pt
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from word_com_embed import embed_txt_via_word
 
 
 # --- Configuration ---
-DOCX_INPUT = r"testthisplease.docx"
+DOCX_INPUT = r"comprehensive_test_cases_updated.docx"
 PNG_PATH = r"screenshots\*.png"
-DOCX_OUTPUT = "testthisplease_RESULT_v5.docx"
+DOCX_OUTPUT = "comprehensive_test_cases_updated_RESULT_v2.docx"
 
 
 # --- Section Filtering ---
@@ -102,6 +107,8 @@ def sanitize_filename(name: str, max_length: int = 200) -> str:
 # Longest-first to avoid partial expansion (e.g. 'dis th' before 'dis')
 _ABBREVIATIONS = [
     ('dis th', 'display this'),
+    ('dis cur', 'display current-configuration'),
+    ('dis cu', 'display current-configuration'),
     ('dis', 'display'),
     ('system', 'system-view'),
     ('sys', 'system-view'),
@@ -192,19 +199,33 @@ def parse_paragraphs_detailed(paragraphs):
     """Extract command blocks and node names from cell paragraphs.
 
     Same logic as parse_paragraphs(), but returns paragraph indices for each node.
+    Also detects "Error:" in output text after a command to mark blocks that expect
+    an [error] PNG. Filters out noise commands like "username".
 
-    Returns list of (commands, [(node, para_idx), ...]) tuples.
+    Returns list of (commands, [(node, para_idx), ...], expect_error) tuples.
     """
     blocks = []
     current_commands = []
     nodes = []  # [(node_name, para_idx), ...]
+    expect_error = False
 
     PROMPT_ONLY_RE = re.compile(
         r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*$'
     )
+    ERROR_LINE_RE = re.compile(r'^Error:', re.IGNORECASE)
+    NOISE_COMMANDS = set()
+
+    def _flush_block():
+        nonlocal current_commands, nodes, expect_error
+        if current_commands or nodes:
+            blocks.append((current_commands[:], nodes[:], expect_error))
+            current_commands = []
+            nodes = []
+            expect_error = False
 
     for para_idx, para in enumerate(paragraphs):
-        for line in para.text.split('\n'):
+        lines = para.text.split('\n')
+        for line_idx, line in enumerate(lines):
             text = line.strip()
             if not text:
                 continue
@@ -224,18 +245,38 @@ def parse_paragraphs_detailed(paragraphs):
                 if not cmd:
                     continue
 
+                # Check for standalone user-view command starting a new block
                 if (prompt.startswith('<') and
                         not prompt.startswith('<~') and
                         not prompt.startswith('<*') and
                         current_commands):
-                    blocks.append((current_commands, nodes))
-                    current_commands = []
-                    nodes = []
+                    _flush_block()
+
+                # Skip noise commands
+                if cmd.split()[0].lower() in NOISE_COMMANDS:
+                    continue
 
                 current_commands.append(cmd)
 
-    if current_commands:
-        blocks.append((current_commands, nodes))
+                # After a command, scan remaining lines in this paragraph
+                # for "Error:" until next prompt/node
+                for future_line in lines[line_idx + 1:]:
+                    fl = future_line.strip()
+                    if not fl:
+                        continue
+                    if PROMPT_LINE_RE.match(fl) or NODE_LINE_RE.match(fl):
+                        break
+                    if ERROR_LINE_RE.match(fl):
+                        expect_error = True
+                        break
+                continue
+
+            # Non-prompt, non-node line (output text)
+            if ERROR_LINE_RE.match(text):
+                expect_error = True
+
+    if current_commands or nodes:
+        blocks.append((current_commands, nodes, expect_error))
 
     return blocks
 
@@ -245,26 +286,33 @@ def _merge_empty_blocks(blocks):
     
     If a block has commands but NO nodes, prepend its commands to the NEXT
     block that has nodes. Blocks that already have nodes are untouched.
+    Propagates expect_error: if any merged block had expect_error=True,
+    the merged result has expect_error=True.
     """
     if not blocks:
         return blocks
 
     merged = []
     pending_commands = []
+    pending_error = False
 
-    for bi, (commands, nodes) in enumerate(blocks):
-        if not commands:
+    for bi, (commands, nodes, expect_error) in enumerate(blocks):
+        if not commands and not nodes:
             continue
 
         if nodes:
             if pending_commands:
                 merged_commands = pending_commands + commands
-                merged.append((merged_commands, nodes))
+                merged_error = pending_error or expect_error
+                merged.append((merged_commands, nodes, merged_error))
                 pending_commands = []
+                pending_error = False
             else:
-                merged.append((commands, nodes))
-        else:
+                merged.append((commands, nodes, expect_error))
+        elif commands:
+            # commands but no nodes → accumulate for next block with nodes
             pending_commands.extend(commands)
+            pending_error = pending_error or expect_error
 
     return merged
 
@@ -274,7 +322,7 @@ def match_cell_blocks(paragraphs, png_files):
 
     Empty standalone blocks (no nodes) are merged into the next block with nodes.
     For merged blocks, each node tries each command individually until finding
-    a non-error match.
+    a match. When expect_error=True for a block, prefers [error] PNGs.
     Returns list of dicts: {
         'node': str,
         'block_idx': int,
@@ -293,37 +341,59 @@ def match_cell_blocks(paragraphs, png_files):
     
     results = []
 
-    for block_idx, (commands, block_nodes) in enumerate(blocks):
+    for block_idx, (commands, block_nodes, expect_error) in enumerate(blocks):
         if not commands or not block_nodes:
             continue
 
         expanded_commands = expand_abbreviations(commands)
+
+        # ── Strip leading SSH/telnet commands from matching ──
+        # When the first command is stelnet/ssh/telnet and a display/dis
+        # command exists later, use only the display command for filename matching.
+        # This handles merged SSH sessions from process_network_logs.py.
+        match_commands = expanded_commands
+        if (expanded_commands and
+            expanded_commands[0].strip().lower().startswith(('stelnet', 'ssh', 'telnet'))):
+            for i, cmd in enumerate(expanded_commands):
+                if cmd.strip().lower().startswith(('dis', 'display')):
+                    match_commands = [cmd]
+                    break
 
         for node, para_idx in block_nodes:
             png_match = None
             best_commands = None
             
             if was_merged:
-                # For merged blocks, try each command individually
-                for i in range(len(expanded_commands)):
-                    single_cmd = expanded_commands[i]
-                    match = find_best_match(node, [single_cmd], png_files)
+                # For merged blocks, try each command individually first
+                for i in range(len(match_commands)):
+                    single_cmd = match_commands[i]
+                    match = find_best_match(
+                        node, [single_cmd], png_files, prefer_error=expect_error
+                    )
                     if not match:
                         continue
                     
-                    has_error = '[error]' in os.path.basename(match).lower()
-                    if not has_error:
-                        png_match = match
-                        best_commands = [single_cmd]
-                        break
-                    elif png_match is None:
-                        # Remember first error match as fallback
-                        png_match = match
-                        best_commands = [single_cmd]
+                    png_match = match
+                    best_commands = [single_cmd]
+                    break
+                
+                # If individual match found but no username tag, also try full sequence
+                # This handles cases like DOCX=['display', 'username kacha1'] where full sequence 
+                # may match a username-tagged PNG while individual matches clean PNG
+                if png_match:
+                    full_match = find_best_match(
+                        node, match_commands, png_files, prefer_error=expect_error
+                    )
+                    if full_match and full_match != png_match:
+                        # Full sequence matched a different (likely username-tagged) PNG
+                        png_match = full_match
+                        best_commands = match_commands
             else:
                 # Normal block matching (full command sequence)
-                png_match = find_best_match(node, expanded_commands, png_files)
-                best_commands = expanded_commands
+                png_match = find_best_match(
+                    node, match_commands, png_files, prefer_error=expect_error
+                )
+                best_commands = match_commands
 
             if not png_match:
                 results.append({
@@ -337,7 +407,8 @@ def match_cell_blocks(paragraphs, png_files):
                 continue
 
             has_error = '[error]' in os.path.basename(png_match).lower()
-            if has_error:
+            if has_error and not expect_error:
+                # Error PNG found but block didn't expect it — skip
                 results.append({
                     'node': node,
                     'block_idx': block_idx,
@@ -347,6 +418,7 @@ def match_cell_blocks(paragraphs, png_files):
                     'action': 'skipped_error',
                 })
             else:
+                # Either clean PNG, or error PNG on an expect_error block
                 results.append({
                     'node': node,
                     'block_idx': block_idx,
@@ -359,21 +431,41 @@ def match_cell_blocks(paragraphs, png_files):
     return results
 
 
-def find_best_match(device: str, commands: list[str], png_files: list[str]) -> str | None:
+def find_best_match(device: str, commands: list[str], png_files: list[str], prefer_error: bool = False) -> str | None:
     """Find the PNG whose filename matches the exact command sequence.
 
     The device name must match exactly (case-insensitive).
     Trailing 'quit' tokens are stripped from both cell commands and PNG filename
     before comparison, so cells with or without quit match correctly.
     The remaining command sequence must match exactly (same tokens, same order).
+    
+    Supports xxx.* placeholders in DOCX commands. For example, if the DOCX has
+    'startup saved-configuration xxx.zip', it will match PNGs with any value
+    where xxx.zip appears: 'startup saved-configuration backup.zip.png'.
+    
+    When prefer_error=True, prioritizes PNGs with [error] suffix over clean PNGs.
     """
     if not commands:
         return None
+
+    # Regex to detect placeholder tokens like xxx.zip, xxx.cfg, etc.
+    _PLACEHOLDER_RE = re.compile(r'^xxx\.[a-z]+$')
 
     # Build search tokens from device + commands
     search_tokens = sanitize_filename(device).lower().split()
     for cmd in commands:
         search_tokens.extend(sanitize_filename(cmd).lower().split())
+
+    # Extract and remove "username VALUE" tag from search tokens (cell side)
+    # The tag can appear anywhere in the command sequence, not just at the end.
+    # We normalize by removing it entirely — it doesn't affect command matching.
+    cell_username = None
+    for i in range(len(search_tokens) - 1):
+        if search_tokens[i] == 'username':
+            cell_username = search_tokens[i + 1]
+            # Remove both tokens
+            del search_tokens[i:i + 2]
+            break
 
     # Strip trailing 'quit' from search tokens (cell side)
     while len(search_tokens) > 1 and search_tokens[-1] == 'quit':
@@ -388,6 +480,10 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
             if png_tokens and png_tokens[0] == search_tokens[0]:
                 return png_path
         return None
+
+    # Canonicalize DOCX command tokens via abbreviation expansion
+    # (same as PNG side, so 'dis cur' ↔ 'display current-configuration' matches)
+    cmd_tokens = expand_abbreviations([' '.join(cmd_tokens)])[0].split()
 
     best_match = None
     current_best_score = None
@@ -405,25 +501,137 @@ def find_best_match(device: str, commands: list[str], png_files: list[str]) -> s
         while png_cmd_tokens and png_cmd_tokens[-1] in ('quit', '[error]'):
             png_cmd_tokens.pop()
 
-        # Exact match required
-        if png_cmd_tokens == cmd_tokens:
-            # Scoring: prefer non-error over error, then prefer shorter filenames
-            is_error = '[error]' in png_name
+        # Extract and remove "username VALUE" tag from PNG tokens
+        # The tag can appear anywhere in the filename, not just at the end.
+        png_username = None
+        for i in range(len(png_cmd_tokens) - 1):
+            if png_cmd_tokens[i] == 'username':
+                png_username = png_cmd_tokens[i + 1]
+                # Remove both tokens
+                del png_cmd_tokens[i:i + 2]
+                break
+
+        # Username filter: DOCX and PNG must have the same username state
+        # - Both have no username → OK
+        # - Both have same username → OK
+        # - Mismatch (one has, one doesn't, or different values) → skip
+        if cell_username != png_username:
+            continue
+
+        # Canonicalize PNG command tokens via same abbreviation expansion as DOCX
+        if png_cmd_tokens:
+            png_cmd_str = ' '.join(png_cmd_tokens)
+            png_cmd_tokens = expand_abbreviations([png_cmd_str])[0].split()
+
+        # Check token count matches
+        if len(png_cmd_tokens) != len(cmd_tokens):
+            continue
+
+        # Compare token-by-token, with xxx.* placeholder support
+        all_match = True
+        for pt, ct in zip(png_cmd_tokens, cmd_tokens):
+            placeholder_match = _PLACEHOLDER_RE.match(ct)
+            if placeholder_match:
+                # DOCX has xxx.* placeholder — compare the file extension only
+                # e.g., xxx.zip in DOCX should match xxx.zip in PNG, but NOT xxx.cfg
+                docx_ext = ct.split('.')[-1]
+                if '.' not in pt:
+                    all_match = False
+                    break
+                png_ext = pt.split('.')[-1]
+                if png_ext != docx_ext:
+                    all_match = False
+                    break
+                continue
+            if pt != ct:
+                all_match = False
+                break
+
+        if not all_match:
+            continue
+
+        # Scoring: when prefer_error, error PNGs win first
+        # Also prefer username-matching PNGs when DOCX has username
+        is_error = '[error]' in png_name
+        png_has_username = png_username is not None
+
+        # Priority:
+        # 1. Error match (0 = preferred when expect_error)
+        # 2. Username match (when DOCX has username)
+        #    - DOCX has username + PNG has username: 0 (best)
+        #    - DOCX has username + PNG no username: 1 (skip)
+        #    - DOCX no username + PNG no username: 0 (best)
+        #    - DOCX no username + PNG has username: 1 (skip)
+        # 3. Shorter filename (fewer tokens)
+        
+        # When both error and username are expected, require BOTH
+        if cell_username is not None:
+            username_score = 0 if png_has_username else 1
+        else:
+            username_score = 0 if not png_has_username else 1
+
+        if prefer_error:
             score = (
-                0 if not is_error else 1,   # Non-error wins
-                len(png_tokens)              # Then shorter wins
+                0 if is_error else 1,
+                username_score,
+                len(png_tokens)
             )
-            if best_match is None or score < current_best_score:
-                best_match = png_path
-                current_best_score = score
+        else:
+            score = (
+                0 if not is_error else 1,
+                username_score,
+                len(png_tokens)
+            )
+        if best_match is None or score < current_best_score:
+            best_match = png_path
+            current_best_score = score
 
     return best_match
 
 
 # --- Main ---
+def _add_file_hyperlink(paragraph, file_path, link_text):
+    """Add a clickable hyperlink to a local file in a Word paragraph."""
+    # Create absolute file URL
+    abs_path = os.path.abspath(file_path)
+    file_url = abs_path.replace('\\', '/')
+    file_url = f"file:///{file_url}"
+
+    part = paragraph.part
+    r_id = part.relate_to(
+        file_url,
+        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+        is_external=True
+    )
+
+    # Create hyperlink element
+    hyperlink = OxmlElement('w:hyperlink')
+    hyperlink.set(qn('r:id'), r_id)
+
+    # Create run with text
+    run = OxmlElement('w:r')
+    rPr = OxmlElement('w:rPr')
+    rStyle = OxmlElement('w:rStyle')
+    rStyle.set(qn('w:val'), 'Hyperlink')
+    rPr.append(rStyle)
+    color = OxmlElement('w:color')
+    color.set(qn('w:val'), '0563C1')
+    rPr.append(color)
+    run.append(rPr)
+    t = OxmlElement('w:t')
+    t.text = link_text
+    run.append(t)
+    hyperlink.append(run)
+
+    paragraph._p.append(hyperlink)
+
+
 if __name__ == "__main__":
     document = Document(DOCX_INPUT)
     png_files = sorted(glob.glob(PNG_PATH))
+    
+    # Collect marker/txt pairs during the main loop for OLE embedding
+    marker_txt_pairs = []
 
     print(f"Loaded: {DOCX_INPUT}")
     print(f"Found {len(png_files)} PNG files in {PNG_PATH}")
@@ -473,6 +681,8 @@ if __name__ == "__main__":
 
                 # Track inserted paragraphs to prevent double-insertion
                 inserted_paragraphs = set()
+                # Track paragraph index shift due to OLE marker insertions
+                para_idx_shift = 0
 
                 for result in match_results:
                     if result['action'] != 'inserted':
@@ -482,7 +692,7 @@ if __name__ == "__main__":
                             print(f"  No match: {result['node']} block {result['block_idx']}")
                         continue
 
-                    para_idx = result['para_idx']
+                    para_idx = result['para_idx'] + para_idx_shift
                     if para_idx in inserted_paragraphs:
                         continue  # Safety: don't double-insert
 
@@ -502,5 +712,32 @@ if __name__ == "__main__":
                     print(f"    Command: {' '.join(commands)}")
                     inserted_paragraphs.add(para_idx)
 
-    document.save(DOCX_OUTPUT)
+                    # Check if there's a full-output .txt for this truncated command
+                    txt_path = match_path.replace('.png', '.txt')
+                    if os.path.exists(txt_path):
+                        marker = f"OLE_MARKER_{uuid.uuid4().hex[:12]}"
+                        # Insert marker paragraph immediately AFTER the image paragraph
+                        # using XML addnext so it appears right below the image
+                        from docx.oxml import OxmlElement
+                        new_p = OxmlElement('w:p')
+                        new_r = OxmlElement('w:r')
+                        new_t = OxmlElement('w:t')
+                        new_t.text = marker
+                        new_r.append(new_t)
+                        new_p.append(new_r)
+                        paragraph._element.addnext(new_p)
+                        print(f"    Marked for OLE embedding: {os.path.basename(txt_path)}")
+                        marker_txt_pairs.append((marker, txt_path))
+                        # Increment shift counter - all subsequent para_idx need +1
+                        para_idx_shift += 1
+
+    # Save to temp first
+    docx_temp = DOCX_OUTPUT + ".tmp"
+    document.save(docx_temp)
+    print(f"\nSaved temp: {docx_temp}")
+
+    # Post-process: embed .txt attachments as OLE objects via Word COM
+    print("Post-processing to embed .txt attachments via Word COM...")
+    embed_txt_via_word(docx_temp, marker_txt_pairs)
+    shutil.move(docx_temp, DOCX_OUTPUT)
     print(f"\nSaved: {DOCX_OUTPUT}")

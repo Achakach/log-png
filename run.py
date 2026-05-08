@@ -16,11 +16,11 @@ def main():
     log_files = sorted(
         os.path.join(LOGS_DIR, f)
         for f in os.listdir(LOGS_DIR)
-        if f.endswith('.txt') and os.path.isfile(os.path.join(LOGS_DIR, f))
+        if f.lower().endswith(('.txt', '.log')) and os.path.isfile(os.path.join(LOGS_DIR, f))
     )
 
     if not log_files:
-        print(f"[WARN] No .txt files found in {LOGS_DIR}")
+        print(f"[WARN] No .txt or .log files found in {LOGS_DIR}")
         sys.exit(1)
 
     total = 0

@@ -95,8 +95,11 @@ def list_sections(doc):
 
 
 def sanitize_filename(name: str, max_length: int = 200) -> str:
-    result = re.sub(r'[\\/:*?"<>\n\r\t]', '_', name)
-    result = result.replace('|', ' ')
+    result = re.sub(r'[\\/*?:"<>\n\r\t]', '_', name)
+    result = result.replace('|', ' ').replace('$', '_').replace('[', '_').replace(']', '_')
+    result = re.sub(r'\s+', ' ', result)
+    result = re.sub(r'_+', '_', result)
+    result = result.strip(' _')
     if not result.strip():
         return 'unnamed'
     return result[:max_length]
@@ -682,7 +685,7 @@ if __name__ == "__main__":
                     inserted_paragraphs.add(para_idx)
 
                     # Check if there's a full-output .txt for this truncated command
-                    txt_path = match_path.replace('.png', '.txt')
+                    txt_path = match_path.replace('.png', '.log')
                     if os.path.exists(txt_path):
                         marker = f"OLE_MARKER_{uuid.uuid4().hex[:12]}"
                         # Insert marker paragraph immediately AFTER the image paragraph

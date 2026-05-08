@@ -132,7 +132,7 @@ def _split_into_segments(log_content: str) -> list[dict]:
     # followed by the command text on the rest of that line,
     # then everything up to the next prompt line (or end of input).
     prompt_re = re.compile(
-        r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*(.+)$',
+        r'^(\u003c[A-Za-z][\w.\-]*\u003e|\[~?\*?[A-Za-z][\w.\-/]*\])[^\S\n\r]*(.+)$',
         re.MULTILINE
     )
 
@@ -282,12 +282,10 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
             curr_group = groups[i]
             prev_last_seg = prev_group[-1]
             curr_first_seg = curr_group[0]
-            # Check if prev seg was stelnet/ssh to another device
-            prev_device = _extract_device_name(prev_last_seg['prompt'])
-            curr_device = _extract_device_name(curr_first_seg['prompt'])
+            # Check if prev seg was stelnet/ssh/telnet session
             prev_cmd = prev_last_seg['command'].strip().lower()
-            if prev_device != curr_device and prev_cmd.startswith(('stelnet', 'ssh', 'telnet')):
-                # Same visual session → merge
+            if prev_cmd.startswith(('stelnet', 'ssh', 'telnet')):
+                # SSH session — merge with next group regardless of device
                 prev_group = prev_group + curr_group
             else:
                 merged.append(prev_group)
@@ -375,10 +373,14 @@ def _extract_device_name(prompt: str) -> str:
 
 
 def sanitize_filename(name: str, max_length: int = 200) -> str:
-    """Replaces invalid filename characters (but not spaces or hyphens) with underscores.
-    Returns 'unnamed' if the result would be empty. Truncates to max_length."""
-    result = re.sub(r'[\\/:*?"<>\n\r\t]', '_', name)
-    result = result.replace('|', ' ')
+    """Replaces invalid filename characters (including $, [, ]) with underscores.
+    Collapses multiple spaces/underscores. Returns 'unnamed' if empty.
+    Truncates to max_length."""
+    result = re.sub(r'[\\/*?:"<>\n\r\t]', '_', name)
+    result = result.replace('|', ' ').replace('$', '_').replace('[', '_').replace(']', '_')
+    result = re.sub(r'\s+', ' ', result)           # collapse spaces
+    result = re.sub(r'_+', '_', result)            # collapse underscores
+    result = result.strip(' _')                     # strip leading/trailing spaces/underscores
     if not result.strip():
         return 'unnamed'
     return result[:max_length]
@@ -578,7 +580,7 @@ def _write_truncated_log(output_dir: str):
     if not _truncated_commands_log:
         return
 
-    log_path = os.path.join(output_dir, 'truncated_commands.txt')
+    log_path = os.path.join(output_dir, 'truncated_commands.log')
     mode = 'a' if os.path.exists(log_path) else 'w'
     with open(log_path, mode, encoding='utf-8') as f:
         if mode == 'w':
@@ -597,7 +599,7 @@ def _write_truncated_log(output_dir: str):
     for entry in _truncated_commands_log:
         safe_device = sanitize_filename(entry['device'])
         safe_cmd = sanitize_filename(entry['command'])
-        txt_filename = f"{safe_device} {safe_cmd}.txt"
+        txt_filename = f"{safe_device} {safe_cmd}.log"
         txt_path = os.path.join(output_dir, txt_filename)
         with open(txt_path, 'w', encoding='utf-8') as f:
             device = entry['device']
@@ -649,10 +651,10 @@ if __name__ == "__main__":
         log_files = sorted(
             os.path.join(args.log_file, f)
             for f in os.listdir(args.log_file)
-            if f.endswith('.txt') and os.path.isfile(os.path.join(args.log_file, f))
+            if f.lower().endswith(('.txt', '.log')) and os.path.isfile(os.path.join(args.log_file, f))
         )
         if not log_files:
-            print(f"⚠ No .txt files found in {args.log_file}")
+            print(f"⚠ No .txt or .log files found in {args.log_file}")
             sys.exit(1)
 
         total_results = []

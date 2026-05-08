@@ -252,10 +252,6 @@ def parse_paragraphs_detailed(paragraphs):
                         current_commands):
                     _flush_block()
 
-                # Skip noise commands
-                if cmd.split()[0].lower() in NOISE_COMMANDS:
-                    continue
-
                 current_commands.append(cmd)
 
                 # After a command, scan remaining lines in this paragraph
@@ -599,42 +595,6 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
 
 
 # --- Main ---
-def _add_file_hyperlink(paragraph, file_path, link_text):
-    """Add a clickable hyperlink to a local file in a Word paragraph."""
-    # Create absolute file URL
-    abs_path = os.path.abspath(file_path)
-    file_url = abs_path.replace('\\', '/')
-    file_url = f"file:///{file_url}"
-
-    part = paragraph.part
-    r_id = part.relate_to(
-        file_url,
-        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
-        is_external=True
-    )
-
-    # Create hyperlink element
-    hyperlink = OxmlElement('w:hyperlink')
-    hyperlink.set(qn('r:id'), r_id)
-
-    # Create run with text
-    run = OxmlElement('w:r')
-    rPr = OxmlElement('w:rPr')
-    rStyle = OxmlElement('w:rStyle')
-    rStyle.set(qn('w:val'), 'Hyperlink')
-    rPr.append(rStyle)
-    color = OxmlElement('w:color')
-    color.set(qn('w:val'), '0563C1')
-    rPr.append(color)
-    run.append(rPr)
-    t = OxmlElement('w:t')
-    t.text = link_text
-    run.append(t)
-    hyperlink.append(run)
-
-    paragraph._p.append(hyperlink)
-
-
 if __name__ == "__main__":
     document = Document(DOCX_INPUT)
     png_files = sorted(glob.glob(PNG_PATH))

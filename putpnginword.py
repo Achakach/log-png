@@ -364,7 +364,8 @@ def match_cell_blocks(paragraphs, png_files):
             best_commands = None
             
             if was_merged:
-                # For merged blocks, try each command individually first
+                # For merged blocks, try each command individually until finding
+                # a non-error match (or until we've tried all commands).
                 for i in range(len(match_commands)):
                     single_cmd = match_commands[i]
                     match = find_best_match(
@@ -372,7 +373,15 @@ def match_cell_blocks(paragraphs, png_files):
                     )
                     if not match:
                         continue
-                    
+
+                    # Check if the matched PNG is an error PNG and whether we
+                    # should skip it or accept it.
+                    has_error = '[error]' in os.path.basename(match).lower()
+                    if has_error and not expect_error:
+                        # Error PNG but block doesn't expect it → skip and try next
+                        continue
+
+                    # Either a clean PNG, or an expected error PNG → use it
                     png_match = match
                     best_commands = [single_cmd]
                     break

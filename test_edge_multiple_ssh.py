@@ -1,4 +1,4 @@
-"""Generate Table 13 test PNG with stelnet session merged into dis cur visual."""
+"""Test edge case: Multiple SSH sessions in one cell."""
 import asyncio
 from playwright.async_api import async_playwright
 import os
@@ -20,16 +20,22 @@ HTML = """
 </head>
 <body>
     <div id="capture-area">
+        <!-- First SSH session -->
         <span class="prompt">&lt;TUC-TEST01&gt;</span> <span class="command">stelnet 10.0.0.1</span>
         <div class="output">Trying 10.0.0.1 ...</div>
-        <div class="output">Press CTRL+K to abort</div>
         <div class="output">Connected to 10.0.0.1 ...</div>
-        <div class="output">Please input the username: xxuser</div>
+        <div class="output">Please input the username: admin</div>
         <div class="output">Please input the password: ********</div>
-        <span class="prompt">&lt;Remote-Device&gt;</span> <span class="command">display current-configutation</span>
-        <div class="output">Error: Do not have permission to run this command.</div>
-        <span class="prompt">&lt;Remote-Device&gt;</span> <span class="command">username xxuser</span>
-        <div class="output">This command will set the current user name.</div>
+        <span class="prompt">&lt;Remote-Device&gt;</span> <span class="command">display current-configuration</span>
+        <div class="output">... configuration output ...</div>
+        <!-- Second SSH session -->
+        <span class="prompt">&lt;TUC-TEST01&gt;</span> <span class="command">stelnet 10.0.0.2</span>
+        <div class="output">Trying 10.0.0.2 ...</div>
+        <div class="output">Connected to 10.0.0.2 ...</div>
+        <div class="output">Please input the username: admin2</div>
+        <div class="output">Please input the password: ********</div>
+        <span class="prompt">&lt;Remote-Device2&gt;</span> <span class="command">display device</span>
+        <div class="output">... device info ...</div>
     </div>
 </body>
 </html>
@@ -42,16 +48,10 @@ async def generate():
         await page.set_content(HTML)
         element = await page.wait_for_selector('#capture-area')
         
-        base = "screenshots/TUC-TEST01 display current-configutation username xxuser [error].png"
+        base = "screenshots/TUC-TEST01 display current-configuration.png"
         await element.screenshot(path=base, type='png')
         print(f"Generated: {base}")
         await browser.close()
-    
-    # Copy for TUC-TEST02 and TUC-TEST03
-    for dev in ['TUC-TEST02', 'TUC-TEST03']:
-        dst = f"screenshots/{dev} display current-configutation username xxuser [error].png"
-        shutil.copy2(base, dst)
-        print(f"Copied to: {dst}")
 
 if __name__ == "__main__":
     asyncio.run(generate())

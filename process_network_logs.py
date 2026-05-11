@@ -274,6 +274,10 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
             groups.append(_finalize_group(current))
             current = []
 
+    # Flush any incomplete nested block (e.g., log disconnect)
+    if in_nested and current:
+        groups.append(_finalize_group(current))
+
     # Post-process: merge consecutive groups when previous block was ssh/stelnet
     # and current block is on a different device
     if groups:

@@ -1,0 +1,25 @@
+---
+- name: Gather Cisco Switch Running Config
+  hosts: "{{ target_hosts | default('cisco_switches') }}"
+  connection: network_cli
+  gather_facts: no
+
+  vars:
+    ansible_network_os: cisco.ios.ios
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_become: yes
+    ansible_become_method: enable
+
+  tasks:
+    - name: Gather running configuration
+      cisco.ios.ios_config:
+        source: running
+      register: running_config
+
+    - name: Store config to variable
+      set_fact:
+        switch_config: "{{ running_config.stdout_lines | join('\n') }}"
+
+    - name: Debug config
+      debug:
+        var: switch_config

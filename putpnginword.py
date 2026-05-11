@@ -8,6 +8,7 @@ from docx.shared import Inches, Pt
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from word_com_embed import embed_txt_via_word
+from filename_utils import sanitize_filename
 
 
 # --- Configuration ---
@@ -92,17 +93,6 @@ def list_sections(doc):
         if level is not None and para.text.strip():
             title = extract_title(para.text)
             print(f"  [Heading {level}] {title}")
-
-
-def sanitize_filename(name: str, max_length: int = 200) -> str:
-    result = re.sub(r'[\\/*?:"<>\n\r\t]', '_', name)
-    result = result.replace('|', ' ').replace('$', '_').replace('[', '_').replace(']', '_')
-    result = re.sub(r'\s+', ' ', result)
-    result = re.sub(r'_+', '_', result)
-    result = result.strip(' _')
-    if not result.strip():
-        return 'unnamed'
-    return result[:max_length]
 
 
 # --- Abbreviation Expansion ---
@@ -216,7 +206,6 @@ def parse_paragraphs_detailed(paragraphs):
         r'^(<[A-Za-z][\w.\-]*>|\[~?\*?[A-Za-z][\w.\-/]*\])\s*$'
     )
     ERROR_LINE_RE = re.compile(r'^Error:', re.IGNORECASE)
-    NOISE_COMMANDS = set()
 
     def _flush_block():
         nonlocal current_commands, nodes, expect_error
@@ -559,35 +548,18 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
             continue
 
         # Scoring: when prefer_error, error PNGs win first
-        # Also prefer username-matching PNGs when DOCX has username
+        # Username matching is handled by the continue check above;
+        # by this point usernames are guaranteed to match.
         is_error = '[error]' in png_name
-        png_has_username = png_username is not None
-
-        # Priority:
-        # 1. Error match (0 = preferred when expect_error)
-        # 2. Username match (when DOCX has username)
-        #    - DOCX has username + PNG has username: 0 (best)
-        #    - DOCX has username + PNG no username: 1 (skip)
-        #    - DOCX no username + PNG no username: 0 (best)
-        #    - DOCX no username + PNG has username: 1 (skip)
-        # 3. Shorter filename (fewer tokens)
-        
-        # When both error and username are expected, require BOTH
-        if cell_username is not None:
-            username_score = 0 if png_has_username else 1
-        else:
-            username_score = 0 if not png_has_username else 1
 
         if prefer_error:
             score = (
                 0 if is_error else 1,
-                username_score,
                 len(png_tokens)
             )
         else:
             score = (
                 0 if not is_error else 1,
-                username_score,
                 len(png_tokens)
             )
         if best_match is None or score < current_best_score:
@@ -599,9 +571,23 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
 
 # --- Main ---
 if __name__ == "__main__":
-    document = Document(DOCX_INPUT)
+    import sys
+
+    if not os.path.exists(DOCX_INPUT):
+        print(f"❌ Error: DOCX input file not found: {DOCX_INPUT}")
+        sys.exit(1)
+
+    try:
+        document = Document(DOCX_INPUT)
+    except Exception as e:
+        print(f"❌ Error: Failed to open DOCX file: {e}")
+        sys.exit(1)
+
     png_files = sorted(glob.glob(PNG_PATH))
-    
+    if not png_files:
+        print(f"⚠ Warning: No PNG files found at: {PNG_PATH}")
+        print("  Run process_network_logs.py first to generate screenshots.")
+
     # Collect marker/txt pairs during the main loop for OLE embedding
     marker_txt_pairs = []
 
@@ -703,13 +689,38 @@ if __name__ == "__main__":
                         # Increment shift counter - all subsequent para_idx need +1
                         para_idx_shift += 1
 
-    # Save to temp first
-    docx_temp = DOCX_OUTPUT + ".tmp"
-    document.save(docx_temp)
-    print(f"\nSaved temp: {docx_temp}")
+    if marker_txt_pairs:
+        # Save to temp first
+        docx_temp = DOCX_OUTPUT + ".tmp"
+        document.save(docx_temp)
+        print(f"\nSaved temp: {docx_temp}")
 
-    # Post-process: embed .txt attachments as OLE objects via Word COM
-    print("Post-processing to embed .txt attachments via Word COM...")
-    embed_txt_via_word(docx_temp, marker_txt_pairs)
-    shutil.move(docx_temp, DOCX_OUTPUT)
-    print(f"\nSaved: {DOCX_OUTPUT}")
+        # Post-process: embed .txt attachments as OLE objects via Word COM
+        import tempfile
+        tmp_dir = tempfile.mkdtemp(prefix="putpnginword_")
+        tmp_final = os.path.join(tmp_dir, os.path.basename(DOCX_OUTPUT))
+        shutil.copy2(docx_temp, tmp_final)
+        try:
+            embed_txt_via_word(docx_temp, marker_txt_pairs)
+            shutil.move(docx_temp, DOCX_OUTPUT)
+            print(f"\nSaved: {DOCX_OUTPUT}")
+        except ImportError as e:
+            print(f"\n⚠ Warning: OLE embedding skipped — {e}")
+            print("  Either pywin32 is not installed or Microsoft Word is not available.")
+            print(f"  Your document has been saved without embedded .txt files: {DOCX_OUTPUT}")
+            shutil.copy2(docx_temp, DOCX_OUTPUT)
+        except Exception as e:
+            print(f"\n⚠ Warning: OLE embedding failed — {e}")
+            print(f"  Your document has been saved without embedded .txt files: {DOCX_OUTPUT}")
+            shutil.copy2(docx_temp, DOCX_OUTPUT)
+        finally:
+            # Clean up temp files
+            if os.path.exists(docx_temp):
+                os.remove(docx_temp)
+            if os.path.exists(tmp_final):
+                os.remove(tmp_final)
+            if os.path.exists(tmp_dir):
+                os.rmdir(tmp_dir)
+    else:
+        document.save(DOCX_OUTPUT)
+        print(f"\nSaved: {DOCX_OUTPUT}")

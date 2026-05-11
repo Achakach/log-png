@@ -1,0 +1,37 @@
+flowchart LR
+    classDef user fill:#d4e6f1,stroke:#2980b9,stroke-width:2px
+    classDef system fill:#d5f5e3,stroke:#27ae60,stroke-width:2px
+    classDef artifact fill:#fadbd8,stroke:#e74c3c,stroke-width:2px
+
+    subgraph Input ["1. INPUT"]
+        direction TB
+        A["Write Huawei VRP log file with CLI prompts"]
+        B["Place .txt file in logs/"]
+    end
+
+    subgraph Process ["2. SCREENSHOT GENERATOR"]
+        direction TB
+        C["Run: python run.py"]
+        D["Core engine: parse, group, render HTML, capture PNG"]
+    end
+
+    subgraph Output ["3. OUTPUT"]
+        direction TB
+        E["screenshots/*.png files"]
+        F["Baseline tracking: detect removed cards, new alarms"]
+    end
+
+    subgraph Insert ["4. WORD INSERTER (Optional)"]
+        direction TB
+        G["Run: python putpnginword.py"]
+        H["Match commands to PNGs, insert images into .docx"]
+        I["Final .docx with embedded screenshots and OLE logs"]
+    end
+
+    A --> B --> C --> D --> E
+    E --> F
+    E --> G --> H --> I
+
+    class A,B,C,G user
+    class D,F,H system
+    class E,I artifact

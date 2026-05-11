@@ -1,0 +1,149 @@
+flowchart TD
+    %% ── STYLES ──
+    classDef userAction fill:#d4e6f1,stroke:#2980b9,stroke-width:2px
+    classDef systemProcess fill:#d5f5e3,stroke:#27ae60,stroke-width:2px
+    classDef decision fill:#fef9e7,stroke:#f39c12,stroke-width:2px
+    classDef output fill:#fadbd8,stroke:#e74c3c,stroke-width:2px
+    classDef config fill:#ebdef0,stroke:#8e44ad,stroke-width:2px
+
+    %% ── START ──
+    START(["Start"])
+    class START config
+
+    %% ── PHASE 1: Prepare Input ──
+    subgraph Phase1 ["Phase 1 - Prepare Input"]
+        P1_1["Write Huawei VRP log file with &lt;Router&gt; or [Router] prompts"]
+        P1_2["Place .txt or .log file in logs/ directory"]
+        P1_3["Install dependencies: pip install -r requirements.txt, playwright install chromium"]
+        class P1_1,P1_2,P1_3 userAction
+    end
+
+    %% ── PHASE 2: Generate Screenshots ──
+    subgraph Phase2 ["Phase 2 - Generate Screenshots"]
+        direction TB
+        P2_0{"Choose mode?"}
+        P2_0 -->|batch| P2_1a
+        P2_0 -->|single file| P2_1b
+        P2_0 -->|directory| P2_1c
+
+        P2_1a["Run: python run.py"]
+        P2_1b["Run: python process_network_logs.py mylog.txt"]
+        P2_1c["Run: python process_network_logs.py logs/ -o screenshots/"]
+        class P2_0 decision
+        class P2_1a,P2_1b,P2_1c userAction
+
+        subgraph CoreEngine ["Core Engine - process_network_logs.py"]
+            direction TB
+            CE1["Parse: _split_into_segments() splits raw log into flat list of prompt, cmd, output"]
+            CE2["Group: _group_segments() depth-based grouping, depth 0 = standalone, depth 1+ = nested block"]
+            CE3["Finalize: _finalize_group() truncate long outputs >70 lines, save full output to .log file"]
+            CE4["Render: Jinja2 template + HTML autoescaped terminal-style page"]
+            CE5["Capture: Playwright headless Chromium, viewport 1200x900 - PNG screenshot"]
+
+            CE1 --> CE2 --> CE3 --> CE4 --> CE5
+            class CE1,CE2,CE3,CE4,CE5 systemProcess
+        end
+
+        subgraph Baseline ["Baseline Tracking (inside core engine)"]
+            direction TB
+            BL1{"Command is display device?"}
+            BL1 -->|Yes| BL2["Parse output - card records"]
+            BL2 --> BL3{"First time for this device?"}
+            BL3 -->|Yes| BL4["Establish baseline, store card list"]
+            BL3 -->|No| BL5["Compare: compare_devices() find missing cards"]
+            BL5 --> BL6{"Missing?"}
+            BL6 -->|Yes| BL7["Append FAN3 removed to PNG filename, copy baseline + new PNG to removedevicetest/"]
+
+            BL8{"Command is display alarm active?"}
+            BL8 -->|Yes| BL9["Parse output - alarm records, extract EntPhysicalName"]
+            BL9 --> BL10{"First time for this device?"}
+            BL10 -->|No| BL11["Compare: compare_alarms() find new alarms"]
+            BL11 --> BL12{"New alarms?"}
+            BL12 -->|Yes| BL13["Append FAN3 removed to PNG filename, copy baseline + alarm PNG to removedevicetest/"]
+
+            class BL1,BL3,BL6,BL8,BL10,BL12 decision
+            class BL2,BL4,BL5,BL7,BL9,BL11,BL13 systemProcess
+        end
+
+        P2_1a --> CE1
+        P2_1b --> CE1
+        P2_1c --> CE1
+        CE5 --> BL1
+        CE5 --> BL8
+    end
+
+    %% ── PHASE 3: Output Screenshots ──
+    subgraph Phase3 ["Phase 3 - Output"]
+        direction TB
+        O1["PNG files saved to screenshots/"]
+        O2["Naming: device command.png or device cmd1 cmd2 ... .png, optional suffixes like [error], [FAN3 removed], username kacha1"]
+        O3["Removed device copies saved to removedevicetest/"]
+        O4["Truncated commands logged to truncated_commands.log, full output saved as .log files"]
+        class O1,O2,O3,O4 output
+    end
+
+    BL7 --> O3
+    BL13 --> O3
+    CE5 --> O1
+    CE5 --> O4
+
+    %% ── PHASE 4: Insert into Word ──
+    subgraph Phase4 ["Phase 4 - Insert into Word (Optional)"]
+        direction TB
+        W1["Run: python putpnginword.py"]
+        W2["Read .docx + screenshots/*.png"]
+        class W1 userAction
+        class W2 systemProcess
+
+        subgraph WordEngine ["Word Inserter - putpnginword.py"]
+            direction TB
+            WE1["Parse cell paragraphs into command blocks + node names"]
+            WE2["Expand abbreviations: dis - display, system - system-view"]
+            WE3["Merge empty blocks into next block with nodes"]
+            WE4["Match: find_best_match() contiguous subsequence matching, device name exact match, token-by-token comparison"]
+            WE5{"Match found?"}
+            WE5 -->|Yes + clean PNG| WE6["Insert image at node paragraph, width 6.495 inches, mark as inserted, deduplicate"]
+            WE5 -->|Yes + error PNG| WE7["Skip: skipped_error"]
+            WE5 -->|No match| WE8["Skip: no_match"]
+            WE6 --> WE9{"Has matching .log file for truncated output?"}
+            WE9 -->|Yes| WE10["Insert OLE marker paragraph after image"]
+
+            class WE1,WE2,WE3,WE4,WE6,WE10 systemProcess
+            class WE5,WE9 decision
+        end
+
+        W2 --> WE1 --> WE2 --> WE3 --> WE4 --> WE5
+
+        subgraph OLEEmbed ["OLE Embedding - word_com_embed.py"]
+            direction TB
+            OLE1["Run: Word COM automation, opens .docx in Word headless"]
+            OLE2["Search for marker paragraphs"]
+            OLE3["Replace each marker with embedded .txt OLE object, double-click opens full log"]
+            OLE4["Save + close document"]
+            class OLE1,OLE2,OLE3,OLE4 systemProcess
+        end
+
+        WE10 --> OLE1 --> OLE2 --> OLE3 --> OLE4
+    end
+
+    O1 --> W2
+    O4 --> WE9
+
+    %% ── PATHS / CONFIG ──
+    subgraph KeyConfig ["Key Configuration"]
+        direction TB
+        KC1["DOCX_INPUT, PNG_PATH, DOCX_OUTPUT - hardcoded in putpnginword.py"]
+        KC2["TARGET_SECTIONS, PERMIT_TRUE/FALSE_KEYWORDS - control which test cases get images"]
+        KC3["_MAX_OUTPUT_LINES = 70 - max rendered lines per screenshot"]
+        class KC1,KC2,KC3 config
+    end
+
+    START --> P1_1 --> P1_2 --> P1_3 --> P2_0
+    Phase1 -.-> KC2
+    Phase2 -.-> KC3
+    Phase4 -.-> KC1
+
+    %% ── END ──
+    O4 --> END1(["Done: screenshots ready"])
+    OLE4 --> END2(["Done: Word doc with embedded screenshots"])
+    class END1,END2 config

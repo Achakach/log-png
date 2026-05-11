@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cisco Switch Config Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #fff;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+        .form-card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .form-card h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        .form-group label .required {
+            color: #dc3545;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,123,255,0.4);
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #f5c6cb;
+            margin-bottom: 20px;
+        }
+        .success-info {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+        }
+        .config-card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .config-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        .config-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            width: auto;
+        }
+        .btn-copy {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+        }
+        .btn-download {
+            background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
+        }
+        .config-content {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .config-content pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .switch-details {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #495057;
+        }
+        .switch-details strong {
+            color: #333;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .config-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+        .copy-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cisco Switch Running Config Viewer</h1>
+
+        <div class="form-card">
+            <h2>Switch Connection Details</h2>
+
+            {% if error %}
+            <div class="error">{{ error }}</div>
+            {% endif %}
+
+            {% if switch_info %}
+            <div class="success-info">
+                Connected to <strong>{{ switch_info.host }}</strong> as <strong>{{ switch_info.username }}</strong>
+            </div>
+            {% endif %}
+
+            <form method="POST" id="configForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="host">Switch IP/Hostname <span class="required">*</span></label>
+                        <input type="text" id="host" name="host" placeholder="192.168.1.1" required value="{{ request.form.host if request.form.host else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="username">Username <span class="required">*</span></label>
+                        <input type="text" id="username" name="username" placeholder="admin" required value="{{ request.form.username if request.form.username else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="password">Password <span class="required">*</span></label>
+                        <input type="password" id="password" name="password" placeholder="Enter password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="enable_password">Enable Password (optional)</label>
+                        <input type="password" id="enable_password" name="enable_password" placeholder="Enter enable password if different">
+                    </div>
+                </div>
+                <button type="submit" class="btn" id="submitBtn">
+                    Fetch Running Config
+                </button>
+            </form>
+        </div>
+
+        {% if config %}
+        <div class="config-card">
+            <div class="config-header">
+                <h2>Running Configuration</h2>
+                <div class="config-actions">
+                    <button class="btn btn-small btn-copy" onclick="copyConfig()">Copy Config</button>
+                    <button class="btn btn-small btn-download" onclick="downloadConfig()">Download</button>
+                </div>
+            </div>
+            <div class="config-content">
+                <pre id="configText">{{ config }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="copy-notification" id="copyNotification">Config copied to clipboard!</div>
+
+    <script>
+        function copyConfig() {
+            const configText = document.getElementById('configText').textContent;
+            navigator.clipboard.writeText(configText).then(() => {
+                const notification = document.getElementById('copyNotification');
+                notification.style.display = 'block';
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+
+        function downloadConfig() {
+            const configText = document.getElementById('configText').textContent;
+            const host = document.getElementById('host').value || 'switch';
+            const blob = new Blob([configText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = host + '_running_config.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Show loading state on form submit
+        document.getElementById('configForm').addEventListener('submit', function() {
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerHTML = 'Connecting to switch... Please wait';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+flowchart LR
+    classDef userAction fill:#d4e6f1,stroke:#2980b9,stroke-width:3px
+    classDef program fill:#d5f5e3,stroke:#27ae60,stroke-width:2px
+    classDef output fill:#fadbd8,stroke:#e74c3c,stroke-width:2px
+    classDef tip fill:#fcf3cf,stroke:#f1c40f,stroke-width:2px
+
+    subgraph UserInput[" "]
+        direction TB
+        A1["1. Create Huawei VRP log file<br/>with CLI session"]
+        A2["2. Ensure nested commands return to<br/>&lt;Router&gt; (user view / depth 0)"]
+        A3["3. Place file in <code>logs/</code> folder"]
+    end
+
+    B["4. Run: <code>python run.py</code>"]
+
+    subgraph Program["Screenshot Generator"]
+        C["Parse → Group → Render → Capture"]
+    end
+
+    subgraph Outputs[" "]
+        direction TB
+        D1["screenshots/*.png<br/>(all command screenshots)"]
+        D2["removeddevicetest/<br/>(baseline + changed,<br/>only if cards/alarms changed)"]
+    end
+
+    subgraph Optional["Optional: Word Inserter"]
+        direction TB
+        E1["5. Prepare .docx with<br/>commands + &lt;NodeNames&gt;"]
+        E2["6. Run: <code>python putpnginword.py</code>"]
+        E3["7. Get *_RESULT.docx<br/>with embedded images"]
+    end
+
+    A1 --> A2 --> A3 --> B --> C --> D1
+    C --> D2
+    D1 --> E1 --> E2 --> E3
+
+    class A1,A2,A3,E1 userAction
+    class B,E2 program
+    class C program
+    class D1,D2,E3 output

@@ -1,12 +1,23 @@
 __pycache__/
 *.pyc
+
+# Output directories
 screenshots/
+removeddevicetest/
+
+# Artifacts
 *.png
-*.docx
+*.zip
+
+# Input data (do not commit logs)
 logs/
 *.txt
 !CLAUDE.md
-!requirement.txt
-*.zip
+!requirements.txt
+
+# Temporary Word files
+*.docx
+~$*.tmp
+
+# Example/generated docs
 example_doc/
-docs/

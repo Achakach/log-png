@@ -8,6 +8,7 @@ from jinja2 import Environment, select_autoescape
 from playwright.async_api import async_playwright
 from display_device_parser import parse_display_device, compare_devices, format_removed_suffix
 from display_alarm_parser import parse_display_alarm_active, compare_alarms, format_alarm_suffix
+from filename_utils import sanitize_filename
 
 # --- Huawei VRP Error Detection ---
 # Regex patterns that indicate the command output contains an error.
@@ -29,8 +30,8 @@ _ERROR_PATTERNS = [
 
 # --- Output Limiting ---
 # Maximum number of output lines to render per screenshot.
-# Longer outputs are truncated with "... (X lines omitted) ..." marker.
-# This keeps PNG size reasonable (approx 1 A4 page in Word).
+# Longer outputs are truncated silently (no marker in PNG).
+# Full output is still saved to .log file for reference.
 _MAX_OUTPUT_LINES = 70
 
 
@@ -317,8 +318,6 @@ def _finalize_group(group: list[dict]) -> list[dict]:
                 'full_output': original_output,
             })
             lines = lines[:_MAX_OUTPUT_LINES]
-            lines.append(f'')
-            lines.append(f'... ({remaining} lines omitted) ...')
             output = '\n'.join(lines)
         finalized.append({
             'prompt': seg['prompt'],
@@ -370,20 +369,6 @@ def _extract_device_name(prompt: str) -> str:
             return inner[:idx]
     # No sub-view keyword found → the whole thing is the device name
     return inner
-
-
-def sanitize_filename(name: str, max_length: int = 200) -> str:
-    """Replaces invalid filename characters (including $, [, ]) with underscores.
-    Collapses multiple spaces/underscores. Returns 'unnamed' if empty.
-    Truncates to max_length."""
-    result = re.sub(r'[\\/*?:"<>\n\r\t]', '_', name)
-    result = result.replace('|', ' ').replace('$', '_').replace('[', '_').replace(']', '_')
-    result = re.sub(r'\s+', ' ', result)           # collapse spaces
-    result = re.sub(r'_+', '_', result)            # collapse underscores
-    result = result.strip(' _')                     # strip leading/trailing spaces/underscores
-    if not result.strip():
-        return 'unnamed'
-    return result[:max_length]
 
 
 async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: str = ".") -> list[dict]:

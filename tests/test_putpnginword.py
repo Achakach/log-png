@@ -9,12 +9,12 @@ from putpnginword import (
     parse_paragraphs,
     expand_abbreviations,
     find_best_match,
-    sanitize_filename,
     list_sections,
     extract_title,
     get_heading_level,
     should_process_table,
 )
+from filename_utils import sanitize_filename
 from docx import Document
 
 

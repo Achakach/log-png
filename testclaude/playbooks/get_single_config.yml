@@ -1,0 +1,31 @@
+---
+- name: Gather Cisco Switch Running Config (Single Host)
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    switch_host: "{{ target_host }}"
+    switch_user: "{{ username }}"
+    switch_password: "{{ password }}"
+    enable_password: "{{ enable_password | default('') }}"
+
+  tasks:
+    - name: Gather running configuration from Cisco switch
+      cisco.ios.ios_config:
+        source: running
+      register: running_config
+      vars:
+        ansible_host: "{{ switch_host }}"
+        ansible_user: "{{ switch_user }}"
+        ansible_password: "{{ switch_password }}"
+        ansible_network_os: cisco.ios.ios
+        ansible_connection: ansible.netcommon.network_cli
+        ansible_become: yes
+        ansible_become_method: enable
+        ansible_become_password: "{{ enable_password }}"
+
+    - name: Return the config
+      debug:
+        msg: "{{ running_config.stdout_lines | join('\n') }}"
+      register: config_output

@@ -2,7 +2,7 @@
 
 ## 1. Prerequisites
 - Python 3.10+ installed
-- Huawei VRP CLI log files (.txt) with prompts like `<Router>` or `[Router]`
+- Huawei VRP CLI log files (.txt or .log) with prompts like `<Router>` or `[Router]`
 
 ## 2. Install (One Time)
 ```bash

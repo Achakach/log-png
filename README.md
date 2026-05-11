@@ -27,8 +27,16 @@ playwright install chromium
 | `jinja2` | HTML template rendering |
 | `playwright` | Headless Chromium screenshot |
 | `python-docx` | Word document manipulation |
+| `pywin32` *(Windows only)* | Required by `word_com_embed.py` for OLE embedding |
+| `filename_utils.py` | Shared `sanitize_filename()` utility for consistent filename handling |
 
 ## Version
+
+**1.2.0** — 2026-05-11
+
+- Codebase cleanup: removed 86 unused tracked files, deduplicated `sanitize_filename()` to `filename_utils.py`
+- Added error handling: clear messages for missing docx, no PNGs, Word COM failures
+- Pinned dependency versions in `requirements.txt`
 
 **1.1.0** — 2026-05-02
 
@@ -116,7 +124,7 @@ playwright install chromium
 ## วิธีใช้
 
 ### 1. วาง log file
-วางไฟล์ `.txt` ในโฟลเดอร์ `logs/`
+  วางไฟล์ `.txt` หรือ `.log` ในโฟลเดอร์ `logs/`
 
 ### 2. รัน
 ```bash
@@ -199,11 +207,7 @@ Script ใช้ depth เพื่อจัดกลุ่มคำสั่ง
 
 ## สร้าง log file ตัวอย่าง
 
-```bash
-python nested_log_gen.py
-```
-
-สร้าง `nested_huawei_log.txt` ที่มีคำสั่งครบทุกอย่าง อย่างละครั้ง
+สร้างไฟล์ `.txt` หรือ `.log` ด้วย Huawei VRP prompt format (`<Router>` / `[Router]`)
 
 ## แทรก PNG ลง Word (`putpnginword.py`)
 

@@ -53,7 +53,7 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Inse
 - `nested_log_gen.py` — Generates deterministic Huawei VRP log. Single NE (`HW-Core-BKK-01`), every command runs once. Each nested session (interface/OSPF) enters and exits system-view independently. After config changes (shutdown, network, silent-interface), prompts show `~` indicator (unsaved config)
 
 ### Entry Points
-- `run.py` — Reads all `.txt` from `logs/`, outputs PNGs to `screenshots/`
+- `run.py` — Reads all `.txt` and `.log` from `logs/`, outputs PNGs to `screenshots/`
 - `process_network_logs.py __main__` — CLI with file/directory argument
 - `putpnginword.py` — Inserts PNGs into Word .docx UAT document (reads PNGs from folder, matches by device+command, saves new .docx)
 
@@ -61,7 +61,9 @@ Pipeline: **Log Generation** → **Parse & Group** → **Screenshot** → **Inse
 - `jinja2` — HTML template rendering (with autoescape enabled)
 - `playwright` — Headless Chromium for screenshot capture
 - `python-docx` — Word document manipulation (for `putpnginword.py`)
+- `pywin32` *(Windows only)* — Required by `word_com_embed.py` for OLE .txt embedding via Word COM
 - Install: `pip install -r requirements.txt && playwright install chromium`
+- Note: `requirements.txt` has pinned versions for reproducibility.
 
 ## Filename Format
 - Standalone: `HW-Core-BKK-01 display device.png`
@@ -117,40 +119,68 @@ No randomness — every command runs exactly once, in a fixed order. No `target_
 - `putpnginword.py` uses word-by-word prefix matching — prompt text in Word cells is ignored, only the command portion is extracted and matched against PNG filenames
 - `putpnginword.py` paths (`DOCX_INPUT`, `PNG_PATH`, `DOCX_OUTPUT`) and permit keywords are hardcoded constants at the top of the file — adjust per document
 
-## Current Project State (2026-05-04)
+## Current Project State (2026-05-11)
 
-### Files
+### Core Files
 ```
+filename_utils.py          ← shared sanitize_filename() utility (deduplicated from core + word inserter)
 process_network_logs.py    ← core engine (parse, group, screenshot, baseline tracking)
 display_device_parser.py   ← parses display device output, compares baseline
 display_alarm_parser.py    ← parses display alarm active output, compares baseline
-putpnginword.py            ← inserts PNGs into Word .docx (contiguous subsequence matching)
+putpnginword.py            ← inserts PNGs into Word .docx (contiguous subsequence matching, error handling)
+word_com_embed.py          ← Windows COM helper for OLE .txt embedding
 run.py                     ← main entry point (reads logs/ → writes screenshots/)
-nested_log_gen.py          ← generates mock log (single NE, deterministic)
-example.txt                ← example of Word table cell format (single + nested)
-requirements.txt           ← jinja2, playwright, python-docx, pytest
-.gitignore                 ← __pycache__, *.pyc, screenshots/, *.png
-README.md                  ← usage docs
+```
+
+### Configuration
+```
+requirements.txt           ← pinned: jinja2==3.1.6, playwright==1.58.0, python-docx==1.2.0, pywin32 note
+.gitignore                 ← __pycache__, *.pyc, screenshots/, *.png, *.docx, removeddevicetest/, ~$*.tmp
+README.md                  ← usage docs (Thai + English)
 CLAUDE.md                  ← this file
-docs/                      ← design specs and implementation plans
-  superpowers/
-    specs/2026-04-23-putpnginword-fix-design.md
-    specs/2026-04-28-display-device-baseline-design.md
-    plans/2026-04-23-putpnginword-fix.md
-tests/                     ← unit tests
-  test_putpnginword.py     ← tests for parsing, expansion, matching, dedup
-  test_display_device_parser.py  ← tests for device parser, compare, suffix
-  test_display_alarm_parser.py   ← tests for alarm parser, compare, suffix
-logs/                      ← input log files (.txt)
+```
+
+### Documentation
+```
+docs/
+  superpowers/specs/         ← design specs
+  analysis/                 ← archived design docs (explain_*, impact_analysis_*, option_c_*)
+```
+
+### Tests (10 files, 93 tests passing)
+```
+tests/
+  test_putpnginword.py              ← parsing, expansion, matching, dedup
+  test_display_device_parser.py     ← device parser, compare, suffix
+  test_display_alarm_parser.py      ← alarm parser, compare, suffix
+  test_option_b_integration.py      ← block-scoped matching, paragraph tracking
+  test_multi_block_preference.py    ← error preference across multiple blocks
+  test_error_detection.py           ← error pattern detection
+  test_error_preference.py          ← error vs clean PNG selection
+  test_error_suffix_integration.py  ← error suffix in grouping
+  test_multi_ne.py                  ← multi-NE parsing, baseline isolation
+  test_docx_real_cases.py           ← real-world cell parsing scenarios
+  test_username_matching.py         ← username tag matching verification
+```
+
+### Input/Output
+```
+logs/                      ← input log files (.txt or .log)
 screenshots/               ← output PNG files
 removeddevicetest/         ← baseline + removed card/alarm PNGs for review
 ```
 
-### Removed files
-- `loggen.py` — replaced by `nested_log_gen.py`
-- `run_mock.py` — replaced by `run.py`
-- `test_regex.py` — not a real test, removed
-- `mock_log.txt` — Cisco format, incompatible with parser
+### Cleanup (2026-05-11)
+Removed 86 tracked files: 47 throwaway `.py` scripts, 38 old `.docx` RESULT versions, 4 temp/artifacts.
+Cleaned root: from 90+ files to 6 core modules + docs + tests.
+
+### Improvements (2026-05-11)
+- **Codebase cleanup:** Removed 86 tracked files (47 throwaway `.py` scripts, 38 old `.docx` RESULT versions, 4 temp/artifacts). Cleaned root from 90+ files to 6 core modules + docs + tests.
+- **Deduplicated `sanitize_filename()`:** Extracted shared `filename_utils.py` used by both `process_network_logs.py` and `putpnginword.py` to prevent silent drift.
+- **Added error handling to `putpnginword.py`:** Clear messages for missing DOCX, no PNGs found, Word COM failures. Temp files cleaned up properly.
+- **Pinned dependency versions:** `jinja2==3.1.6`, `playwright==1.58.0`, `python-docx==1.2.0`. Added `pywin32` documentation.
+- **Dead code removal:** Removed `NOISE_COMMANDS = set()` (never used), misleading `username_score` comments in `find_best_match()`.
+- **Added `test_username_matching.py`:** 8 tests verifying username-tagged PNG matching behavior.
 
 ### Bug fixes (resolved)
 - Fixed `_group_segments()`: depth-0 segment after nested block no longer incorrectly appended to the block

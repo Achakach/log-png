@@ -1,0 +1,22 @@
+{
+  "xlsx_input": "template.xlsx",
+  "xlsx_output": "output.xlsx",
+  "png_path": "screenshots/*.png",
+  "sheet_configs": [
+    [
+      "DisplayClock",
+      "display clock"
+    ],
+    [
+      "DisplayDevice",
+      "display device"
+    ],
+    [
+      "DisplayDevice",
+      "dis device"
+    ]
+  ],
+  "start_cell": "B2",
+  "image_width_inches": 6,
+  "gap_rows": 3
+}

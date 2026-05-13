@@ -3,6 +3,8 @@ import os
 import glob
 import shutil
 import uuid
+import json
+import sys
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.oxml import OxmlElement
@@ -12,18 +14,37 @@ from filename_utils import sanitize_filename
 
 
 # --- Configuration ---
-DOCX_INPUT = r"comprehensive_test_cases_updated.docx"
-PNG_PATH = r"screenshots\*.png"
-DOCX_OUTPUT = "comprehensive_test_cases_updated_RESULT_v2.docx"
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "putpnginword_config.json")
+
+_DEFAULT_CONFIG = {
+    "docx_input": "comprehensive_test_cases_updated.docx",
+    "png_path": r"screenshots\*.png",
+    "docx_output": "comprehensive_test_cases_updated_RESULT_v2.docx",
+    "target_sections": []
+}
 
 
-# --- Section Filtering ---
-# Empty list [] = process ALL tables (default, backward-compatible)
-# List of titles = process only tables under matching heading titles and deeper
-# Examples:
-#   ['Device Management Acceptance'] → process this section and all sub-sections
-#   ['login protocol SSH'] → process specific sub-section
-TARGET_SECTIONS = []
+# Removed hardcoded constants — now loaded from putpnginword_config.json:
+# DOCX_INPUT, PNG_PATH, DOCX_OUTPUT, TARGET_SECTIONS
+
+
+def _ensure_config():
+    """If config.json is missing, create a template and exit."""
+    if os.path.exists(CONFIG_PATH):
+        return
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(_DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
+    print(f"Created template: {CONFIG_PATH}")
+    print("Please edit it with your paths, then run again.")
+    sys.exit(0)
+
+
+def load_config():
+    """Read putpnginword_config.json and return settings."""
+    _ensure_config()
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    return cfg
 
 
 # --- Regex patterns ---
@@ -573,26 +594,32 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
 if __name__ == "__main__":
     import sys
 
-    if not os.path.exists(DOCX_INPUT):
-        print(f"❌ Error: DOCX input file not found: {DOCX_INPUT}")
+    cfg = load_config()
+    docx_input = cfg.get("docx_input", _DEFAULT_CONFIG["docx_input"])
+    png_path = cfg.get("png_path", _DEFAULT_CONFIG["png_path"])
+    docx_output = cfg.get("docx_output", _DEFAULT_CONFIG["docx_output"])
+    target_sections = cfg.get("target_sections", _DEFAULT_CONFIG["target_sections"])
+
+    if not os.path.exists(docx_input):
+        print(f"❌ Error: DOCX input file not found: {docx_input}")
         sys.exit(1)
 
     try:
-        document = Document(DOCX_INPUT)
+        document = Document(docx_input)
     except Exception as e:
         print(f"❌ Error: Failed to open DOCX file: {e}")
         sys.exit(1)
 
-    png_files = sorted(glob.glob(PNG_PATH))
+    png_files = sorted(glob.glob(png_path))
     if not png_files:
-        print(f"⚠ Warning: No PNG files found at: {PNG_PATH}")
+        print(f"⚠ Warning: No PNG files found at: {png_path}")
         print("  Run process_network_logs.py first to generate screenshots.")
 
     # Collect marker/txt pairs during the main loop for OLE embedding
     marker_txt_pairs = []
 
-    print(f"Loaded: {DOCX_INPUT}")
-    print(f"Found {len(png_files)} PNG files in {PNG_PATH}")
+    print(f"Loaded: {docx_input}")
+    print(f"Found {len(png_files)} PNG files in {png_path}")
 
     # Permit logic — controls which test cases get images
     # (customizable per document)
@@ -609,8 +636,8 @@ if __name__ == "__main__":
     )
 
     for table_index, table in enumerate(document.tables):
-        if TARGET_SECTIONS:
-            if not should_process_table(document, table_index, TARGET_SECTIONS):
+        if target_sections:
+            if not should_process_table(document, table_index, target_sections):
                 continue
 
         print(f"\n--- Table {table_index + 1} ---")
@@ -691,28 +718,28 @@ if __name__ == "__main__":
 
     if marker_txt_pairs:
         # Save to temp first
-        docx_temp = DOCX_OUTPUT + ".tmp"
+        docx_temp = docx_output + ".tmp"
         document.save(docx_temp)
         print(f"\nSaved temp: {docx_temp}")
 
         # Post-process: embed .txt attachments as OLE objects via Word COM
         import tempfile
         tmp_dir = tempfile.mkdtemp(prefix="putpnginword_")
-        tmp_final = os.path.join(tmp_dir, os.path.basename(DOCX_OUTPUT))
+        tmp_final = os.path.join(tmp_dir, os.path.basename(docx_output))
         shutil.copy2(docx_temp, tmp_final)
         try:
             embed_txt_via_word(docx_temp, marker_txt_pairs)
-            shutil.move(docx_temp, DOCX_OUTPUT)
-            print(f"\nSaved: {DOCX_OUTPUT}")
+            shutil.move(docx_temp, docx_output)
+            print(f"\nSaved: {docx_output}")
         except ImportError as e:
             print(f"\n⚠ Warning: OLE embedding skipped — {e}")
             print("  Either pywin32 is not installed or Microsoft Word is not available.")
-            print(f"  Your document has been saved without embedded .txt files: {DOCX_OUTPUT}")
-            shutil.copy2(docx_temp, DOCX_OUTPUT)
+            print(f"  Your document has been saved without embedded .txt files: {docx_output}")
+            shutil.copy2(docx_temp, docx_output)
         except Exception as e:
             print(f"\n⚠ Warning: OLE embedding failed — {e}")
-            print(f"  Your document has been saved without embedded .txt files: {DOCX_OUTPUT}")
-            shutil.copy2(docx_temp, DOCX_OUTPUT)
+            print(f"  Your document has been saved without embedded .txt files: {docx_output}")
+            shutil.copy2(docx_temp, docx_output)
         finally:
             # Clean up temp files
             if os.path.exists(docx_temp):
@@ -722,5 +749,5 @@ if __name__ == "__main__":
             if os.path.exists(tmp_dir):
                 os.rmdir(tmp_dir)
     else:
-        document.save(DOCX_OUTPUT)
-        print(f"\nSaved: {DOCX_OUTPUT}")
+        document.save(docx_output)
+        print(f"\nSaved: {docx_output}")

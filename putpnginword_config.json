@@ -1,0 +1,6 @@
+{
+  "docx_input": "comprehensive_test_cases_updated.docx",
+  "png_path": "screenshots\\*.png",
+  "docx_output": "comprehensive_test_cases_updated_RESULT_v2.docx",
+  "target_sections": []
+}

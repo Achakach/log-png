@@ -202,9 +202,17 @@ def _prompt_depth(prompt: str) -> int:
     return 0
 
 
-def _group_segments(segments: list[dict]) -> list[list[dict]]:
+def _group_segments(segments: list[dict], whitelist: list[str] | None = None) -> list[list[dict]]:
     """
     Group segments for screenshot generation based purely on prompt depth changes.
+
+    Parameters
+    ----------
+    segments : list[dict]
+        Raw segments from _split_into_segments.
+    whitelist : list[str] | None
+        If provided, non-whitelisted groups will NOT have truncation logging,
+        preventing .log file creation for skipped commands.
 
     Rules:
       1. Each **standalone** command (prompt stays at same depth, no deeper
@@ -213,26 +221,6 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
       2. When a command causes the next segment's prompt to go **deeper**,
          it starts a **nested block** — that command and all subsequent segments
          until we return to depth 0 are one group → one PNG.
-
-    Nested block boundaries:
-      - **Start**: <Router> system-view (depth 0, next depth 1)
-      - **End**: return to <Router> (depth 0). The depth-0 segment that
-        ends the block falls through and starts its own group (standalone
-        or new nested block).
-
-    Depth levels:
-      - <Router>           → depth 0 (user view)
-      - [Router]           → depth 1 (system view)
-      - [Router-subview]   → depth 2+ (sub-view)
-
-    Example:
-      <HW> display device       → standalone PNG (next prompt same depth)
-      <HW> system-view          → starts nested block (next prompt goes deeper)
-      [HW] interface GE0/0/1   → part of block (next prompt goes deeper)
-      [HW-GE0/0/1] display this → part of block (next prompt same or shallower)
-      [HW-GE0/0/1] quit        → part of block (next prompt goes shallower)
-      [HW] quit                 → part of block (next prompt goes to depth 0)
-      <HW> display clock        → standalone PNG (depth 0, ends previous block)
     """
     if not segments:
         return []
@@ -252,7 +240,7 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
                 # Do NOT append this depth-0 segment to the block;
                 # let it fall through to be processed as standalone/new block
                 if current:
-                    groups.append(_finalize_group(current))
+                    groups.append(_finalize_group(current, whitelist))
                 current = []
                 in_nested = False
                 # Fall through to re-process this segment below
@@ -269,14 +257,14 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
         else:
             # Next command stays at same depth → standalone command
             if current:
-                groups.append(_finalize_group(current))
+                groups.append(_finalize_group(current, whitelist))
             current = [seg]
-            groups.append(_finalize_group(current))
+            groups.append(_finalize_group(current, whitelist))
             current = []
 
     # Flush any incomplete nested block (e.g., log disconnect)
     if in_nested and current:
-        groups.append(_finalize_group(current))
+        groups.append(_finalize_group(current, whitelist))
 
     # Post-process: merge consecutive groups when previous block was ssh/stelnet
     # and current block is on a different device
@@ -301,17 +289,73 @@ def _group_segments(segments: list[dict]) -> list[list[dict]]:
     return groups
 
 
+def _command_matches_whitelist(command: str, whitelist: list[str]) -> bool:
+    """Check if a command matches any entry in the whitelist (prefix, case-insensitive).
+
+    Prefix matching allows users to whitelist a base command and automatically
+    match all variations with arguments (e.g. 'stelnet' matches
+    'stelnet 10.1.1.1', 'stelnet 20.20.20.20', etc.)"""
+    if not whitelist:
+        return True
+    cmd_lower = command.strip().lower()
+    return any(cmd_lower.startswith(wl.lower().strip()) for wl in whitelist)
+
+
+def _group_matches_whitelist(group: list[dict], whitelist: list[str]) -> bool:
+    """Check if the group matches the whitelist.
+
+    - Standalone (1 command): match the command itself.
+    - Nested block (>1 command): match by the ENTRY command (first command).
+      This allows whitelisting all nested blocks via 'system-view' / 'system' / 'sys'.
+    """
+    if not whitelist:
+        return True
+    if not group:
+        return False
+    entry_cmd = group[0]['command'].strip().lower()
+    if len(group) == 1:
+        # Standalone: match the command itself (prefix matching)
+        return _command_matches_whitelist(entry_cmd, whitelist)
+    else:
+        # Nested block: match by entry command (e.g. system-view) using prefix matching
+        return _command_matches_whitelist(entry_cmd, whitelist)
+
+
+def _filter_groups_by_whitelist(groups: list[list[dict]], whitelist: list[str]) -> list[list[dict]]:
+    """Return only groups that contain at least one whitelisted command."""
+    if not whitelist:
+        return groups
+    filtered = [g for g in groups if _group_matches_whitelist(g, whitelist)]
+    skipped = len(groups) - len(filtered)
+    if skipped > 0:
+        print(f"  (skipped {skipped} non-whitelisted command group(s))")
+    return filtered
+
+
 _truncated_commands_log = []
 
 
-def _finalize_group(group: list[dict]) -> list[dict]:
-    """Add sanitized filenames to a group of segments and truncate long outputs."""
+def _should_truncate_and_log(group: list[dict], whitelist: list[str] | None) -> bool:
+    """Return True if this group should have truncation logging enabled.
+
+    When a whitelist is active, skip truncation logging for non-whitelisted
+    groups so that no .log files are created for commands that will never
+    be rendered to PNG.
+    """
+    if not whitelist:
+        return True
+    return _group_matches_whitelist(group, whitelist)
+
+
+def _finalize_group(group: list[dict], whitelist: list[str] | None = None) -> list[dict]:
+    """Add sanitized filenames to a group of segments and optionally truncate long outputs."""
+    do_log = _should_truncate_and_log(group, whitelist)
     finalized = []
     for seg in group:
         original_output = seg['output']
         lines = original_output.splitlines()
         output = original_output
-        if len(lines) > _MAX_OUTPUT_LINES:
+        if len(lines) > _MAX_OUTPUT_LINES and do_log:
             remaining = len(lines) - _MAX_OUTPUT_LINES
             _truncated_commands_log.append({
                 'device': _extract_device_name(seg['prompt']),
@@ -333,15 +377,22 @@ def _finalize_group(group: list[dict]) -> list[dict]:
     return finalized
 
 
-def parse_log(log_content: str) -> list[list[dict]]:
+def parse_log(log_content: str, whitelist: list[str] | None = None) -> list[list[dict]]:
     """
     Parse a network log file and return grouped segments.
     Each group represents a logical CLI session.
+
+    Parameters
+    ----------
+    log_content : str
+        Raw log text.
+    whitelist : list[str] | None
+        If provided, non-whitelisted groups will NOT have truncation logging.
     """
     raw_segments = _split_into_segments(log_content)
     if not raw_segments:
         return []
-    return _group_segments(raw_segments)
+    return _group_segments(raw_segments, whitelist)
 
 
 def _extract_device_name(prompt: str) -> str:
@@ -600,15 +651,32 @@ def _write_truncated_log(output_dir: str):
     _truncated_commands_log = []  # Clear after writing
 
 
-def process_network_logs(log_content: str, output_dir: str = ".") -> list[dict]:
+def process_network_logs(log_content: str, output_dir: str = ".", whitelist: list[str] | None = None) -> list[dict]:
     """
     Main orchestration function to process the string content of a raw log file
     and output a list of dictionary segments with screenshot paths.
+
+    Parameters
+    ----------
+    log_content : str
+        Raw log text.
+    output_dir : str
+        Directory to write PNG screenshots.
+    whitelist : list[str] | None
+        If provided, only groups containing at least one of these commands
+        (exact, case-insensitive match) will be rendered to PNG.
     """
-    segments = parse_log(log_content)
+    segments = parse_log(log_content, whitelist)
     if not segments:
         print("⚠ No segments found in log content.")
         return []
+
+    # Apply whitelist filter before rendering
+    if whitelist:
+        segments = _filter_groups_by_whitelist(segments, whitelist)
+        if not segments:
+            print("⚠ No segments matched the whitelist.")
+            return []
 
     try:
         loop = asyncio.get_running_loop()

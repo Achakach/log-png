@@ -1,0 +1,8 @@
+{
+  "logs_dir": "logs",
+  "output_dir": "screenshots",
+  "whitelist": [
+    "stelnet 10.1.1.1",
+    "stelnet 10.10.10.10"
+  ]
+}

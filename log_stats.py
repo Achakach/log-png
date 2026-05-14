@@ -19,7 +19,13 @@ from collections import Counter, defaultdict
 from process_network_logs import _split_into_segments, _prompt_depth
 
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+def get_base_dir():
+    """Get the directory where the .exe or .py script lives."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+SCRIPT_DIR = get_base_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "run_config.json")
 
 
@@ -148,3 +154,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    if getattr(sys, 'frozen', False):
+        # Pause when double-clicked as .exe so user can read output
+        input("\n[Press Enter to close]")

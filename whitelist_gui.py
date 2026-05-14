@@ -29,7 +29,13 @@ from tkinter import ttk, messagebox, scrolledtext
 from process_network_logs import _split_into_segments, _prompt_depth
 
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+def _get_base_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+SCRIPT_DIR = _get_base_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "run_config.json")
 
 
@@ -44,7 +50,7 @@ def parse_logs_and_count(logs_dir="logs"):
     """Read all .txt/.log files and count commands (standalone only, depth 0)."""
     logs_path = os.path.join(SCRIPT_DIR, logs_dir)
     if not os.path.isdir(logs_path):
-        return {}
+        return {}, 0, 0
 
     log_files = sorted(
         os.path.join(logs_path, f)

@@ -10,6 +10,27 @@ from display_device_parser import parse_display_device, compare_devices, format_
 from display_alarm_parser import parse_display_alarm_active, compare_alarms, format_alarm_suffix
 from filename_utils import sanitize_filename
 
+
+# --- Playwright browser path for frozen (.exe) mode ---
+def _setup_playwright_browsers_path():
+    """
+    When running as a frozen .exe (PyInstaller or Nuitka), Playwright looks
+    for browsers alongside the .exe. This function points it to bundled
+    ms-playwright folder, or lets standard install/env var take over.
+    """
+    # PyInstaller sets sys.frozen; Nuitka sets __compiled__
+    is_frozen = getattr(sys, 'frozen', False) or hasattr(sys, '__compiled__')
+    if is_frozen:
+        exe_path = os.path.abspath(sys.argv[0])
+        exe_dir = os.path.dirname(exe_path)
+        bundled_browser = os.path.join(exe_dir, 'ms-playwright')
+        if os.path.isdir(bundled_browser):
+            os.environ['PLAYWRIGHT_BROWSERS_PATH'] = bundled_browser
+            return
+
+
+_setup_playwright_browsers_path()
+
 # --- Huawei VRP Error Detection ---
 # Regex patterns that indicate the command output contains an error.
 # Each pattern MUST match at the start of a line (after optional whitespace).

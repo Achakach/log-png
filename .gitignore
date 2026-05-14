@@ -1,23 +1,97 @@
+# =============================================================================
+# Python bytecode & caches
+# =============================================================================
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
 
-# Output directories
+# =============================================================================
+# Virtual environments
+# =============================================================================
+.venv/
+venv/
+ENV/
+env/
+
+# =============================================================================
+# IDEs and editors
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# OS generated files
+# =============================================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =============================================================================
+# Build / distribution artifacts
+# =============================================================================
+/build/
+/dist/
+*.egg-info/
+.eggs/
+*.egg
+*.manifest
+*.spec
+*.dist/
+/dist_nuitka/
+
+# =============================================================================
+# Project outputs & artifacts
+# =============================================================================
+# Generated screenshots and baseline review folders
 screenshots/
 removeddevicetest/
 
-# Artifacts
-*.png
-*.zip
-
-# Input data (do not commit logs)
+# Input log files (do not commit production logs)
 logs/
 *.txt
-!CLAUDE.md
 !requirements.txt
 
-# Temporary Word files
+# Generated images
+*.png
+*.jpg
+*.jpeg
+
+# Office / archive artifacts
 *.docx
+*.xlsx
+*.zip
+
+# Temporary Word lock files
 ~$*.tmp
 
-# Example/generated docs
+# Example / generated documentation directory
 example_doc/
+
+# =============================================================================
+# Root-level scratch / temp files (anchored to avoid hitting tests/)
+# =============================================================================
+/testclaude/
+/tiny_test.py
+/test_*.py
+/verify_*.py
+/_inspect_*.py
+/handover.md
+
+# =============================================================================
+# Nuitka / PyInstaller build directories
+# =============================================================================
+/build/
+/dist/
+/dist_nuitka/
+*.spec
+*.dist/
+
+# Batch / installer scripts
+*.bat
+*.iss

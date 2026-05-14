@@ -15,7 +15,13 @@ import glob
 
 import process_network_logs
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+def get_base_dir():
+    """Get the directory where the .exe or .py script lives."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+SCRIPT_DIR = get_base_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "run_config.json")
 
 _DEFAULT_CONFIG = {

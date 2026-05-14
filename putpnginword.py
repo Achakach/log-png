@@ -13,8 +13,15 @@ from word_com_embed import embed_txt_via_word
 from filename_utils import sanitize_filename
 
 
+def get_base_dir():
+    """Get the directory where the .exe or .py script lives."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 # --- Configuration ---
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "putpnginword_config.json")
+CONFIG_PATH = os.path.join(get_base_dir(), "putpnginword_config.json")
 
 _DEFAULT_CONFIG = {
     "docx_input": "comprehensive_test_cases_updated.docx",

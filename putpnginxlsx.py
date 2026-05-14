@@ -30,6 +30,17 @@ from openpyxl.drawing.image import Image as OpenpyxlImage
 CONFIG_FILENAME = "putpnginxlsx_config.json"
 
 
+def get_base_dir():
+    """Get the directory where the .exe or .py script lives."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_config_path():
+    return os.path.join(get_base_dir(), CONFIG_FILENAME)
+
+
 _DEFAULT_CONFIG = {
     "xlsx_input": "template.xlsx",
     "xlsx_output": "output.xlsx",
@@ -50,11 +61,12 @@ _ROW_HEIGHT_INCHES = 0.21           # Default Excel row height ≈ 15pt
 
 def _ensure_config():
     """If config.json is missing, create a template and exit."""
-    if os.path.exists(CONFIG_FILENAME):
+    cfg_path = get_config_path()
+    if os.path.exists(cfg_path):
         return
-    with open(CONFIG_FILENAME, "w", encoding="utf-8") as f:
+    with open(cfg_path, "w", encoding="utf-8") as f:
         json.dump(_DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
-    print(f"Created template: {CONFIG_FILENAME}")
+    print(f"Created template: {cfg_path}")
     print("Please edit it with your paths and keywords, then run again.")
     sys.exit(0)
 
@@ -62,7 +74,8 @@ def _ensure_config():
 def load_config():
     """Read and validate config.json."""
     _ensure_config()
-    with open(CONFIG_FILENAME, "r", encoding="utf-8") as f:
+    cfg_path = get_config_path()
+    with open(cfg_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
     # Convert sheet_configs from list-of-lists to list-of-tuples

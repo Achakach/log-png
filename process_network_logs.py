@@ -56,6 +56,11 @@ _ERROR_PATTERNS = [
 _MAX_OUTPUT_LINES = 70
 
 
+# Maximum characters per line before visual wrapping occurs.
+# Lines exceeding this are truncated to _MAX_LINE_LENGTH to prevent tall PNGs.
+_MAX_LINE_LENGTH = 130
+
+
 def _has_error_in_output(output_text: str) -> bool:
     """Scan command output for Huawei VRP error/warning markers.
 
@@ -107,6 +112,7 @@ HTML_TEMPLATE = """
             background-color: #000000;
             padding: 20px;
             width: 1000px;
+            max-width: 1000px;        /* ADD THIS LINE */
             box-sizing: border-box;
             font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 12px;
@@ -154,7 +160,7 @@ def _split_into_segments(log_content: str) -> list[dict]:
     # followed by the command text on the rest of that line,
     # then everything up to the next prompt line (or end of input).
     prompt_re = re.compile(
-        r'^(\u003c[A-Za-z][\w.\-]*\u003e|\[~?\*?[A-Za-z][\w.\-/]*\])[^\S\n\r]*(.+)$',
+        r'^(\u003c[A-Za-z][\w.\-]*\u003e|\[~?\*?[A-Za-z][\w.\-/]*\])[^\S\n\r]*(?!,)(.+)$',
         re.MULTILINE
     )
 
@@ -368,14 +374,31 @@ def _should_truncate_and_log(group: list[dict], whitelist: list[str] | None) -> 
     return _group_matches_whitelist(group, whitelist)
 
 
+def _truncate_long_lines(group: list[dict]) -> None:
+    """Truncate individual output lines that exceed max visual width.
+
+    Prevents visual wrapping in screenshots by cutting lines at _MAX_LINE_LENGTH.
+    The .log file preserves the full output (original_output is captured before this runs).
+    """
+    for seg in group:
+        lines = seg['output'].split('\n')
+        truncated = []
+        for line in lines:
+            if len(line) > _MAX_LINE_LENGTH:
+                line = line[:_MAX_LINE_LENGTH]
+            truncated.append(line)
+        seg['output'] = '\n'.join(truncated)
+
+
 def _finalize_group(group: list[dict], whitelist: list[str] | None = None) -> list[dict]:
     """Add sanitized filenames to a group of segments and optionally truncate long outputs."""
     do_log = _should_truncate_and_log(group, whitelist)
     finalized = []
     for seg in group:
-        original_output = seg['output']
-        lines = original_output.splitlines()
-        output = original_output
+        original_output = seg['output']   # CAPTURE BEFORE TRUNCATION
+        _truncate_long_lines([seg])        # TRUNCATE LONG LINES (mutates seg['output'])
+        lines = seg['output'].splitlines()
+        output = seg['output']
         if len(lines) > _MAX_OUTPUT_LINES and do_log:
             remaining = len(lines) - _MAX_OUTPUT_LINES
             _truncated_commands_log.append({
@@ -384,7 +407,7 @@ def _finalize_group(group: list[dict], whitelist: list[str] | None = None) -> li
                 'total_lines': len(lines),
                 'kept_lines': _MAX_OUTPUT_LINES,
                 'omitted_lines': remaining,
-                'full_output': original_output,
+                'full_output': original_output,   # LOGS THE TRULY ORIGINAL OUTPUT
             })
             lines = lines[:_MAX_OUTPUT_LINES]
             output = '\n'.join(lines)

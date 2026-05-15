@@ -1,4 +1,5 @@
 import datetime
+import json
 import re
 import asyncio
 import os
@@ -53,12 +54,58 @@ _ERROR_PATTERNS = [
 # Maximum number of output lines to render per screenshot.
 # Longer outputs are truncated silently (no marker in PNG).
 # Full output is still saved to .log file for reference.
-_MAX_OUTPUT_LINES = 70
+_DEFAULT_MAX_OUTPUT_LINES = 70
 
 
 # Maximum characters per line before visual wrapping occurs.
 # Lines exceeding this are truncated to _MAX_LINE_LENGTH to prevent tall PNGs.
-_MAX_LINE_LENGTH = 130
+_DEFAULT_MAX_LINE_LENGTH = 130
+
+
+def load_limits(config_path: str = "run_config.json") -> dict:
+    """Read screenshot limits from a JSON config file with fallback defaults.
+
+    Parameters
+    ----------
+    config_path : str
+        Path to the JSON config file. Defaults to "run_config.json".
+
+    Returns
+    -------
+    dict
+        Resolved values with keys:
+        - max_line_length   (default: 130)
+        - max_output_lines  (default: 70)
+        - screenshot_width  (default: 1000)
+
+    Invalid or missing keys print a WARNING and fall back to defaults.
+    Missing file is silent (no warning) and uses defaults.
+    """
+    defaults = {
+        "max_line_length": _DEFAULT_MAX_LINE_LENGTH,
+        "max_output_lines": _DEFAULT_MAX_OUTPUT_LINES,
+        "screenshot_width": 1000,
+    }
+    if not os.path.exists(config_path):
+        return defaults
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        print(f"WARNING: Failed to read {config_path}; using default limits.")
+        return defaults
+
+    resolved = {}
+    for key, default in defaults.items():
+        value = cfg.get(key, default)
+        if isinstance(value, int) and value > 0:
+            resolved[key] = value
+        else:
+            print(f"WARNING: Invalid value for '{key}' in {config_path} "
+                  f"(got {value!r}, expected positive integer); using default {default}.")
+            resolved[key] = default
+    return resolved
 
 
 def _has_error_in_output(output_text: str) -> bool:
@@ -111,8 +158,8 @@ HTML_TEMPLATE = """
         #capture-area {
             background-color: #000000;
             padding: 20px;
-            width: 1000px;
-            max-width: 1000px;        /* ADD THIS LINE */
+            width: {{ screenshot_width }}px;
+            max-width: {{ screenshot_width }}px;        /* ADD THIS LINE */
             box-sizing: border-box;
             font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 12px;
@@ -377,15 +424,17 @@ def _should_truncate_and_log(group: list[dict], whitelist: list[str] | None) -> 
 def _truncate_long_lines(group: list[dict]) -> None:
     """Truncate individual output lines that exceed max visual width.
 
-    Prevents visual wrapping in screenshots by cutting lines at _MAX_LINE_LENGTH.
+    Prevents visual wrapping in screenshots by cutting lines at max_line_length.
     The .log file preserves the full output (original_output is captured before this runs).
     """
+    limits = load_limits()
+    max_line_length = limits['max_line_length']
     for seg in group:
         lines = seg['output'].split('\n')
         truncated = []
         for line in lines:
-            if len(line) > _MAX_LINE_LENGTH:
-                line = line[:_MAX_LINE_LENGTH]
+            if len(line) > max_line_length:
+                line = line[:max_line_length]
             truncated.append(line)
         seg['output'] = '\n'.join(truncated)
 
@@ -393,23 +442,25 @@ def _truncate_long_lines(group: list[dict]) -> None:
 def _finalize_group(group: list[dict], whitelist: list[str] | None = None) -> list[dict]:
     """Add sanitized filenames to a group of segments and optionally truncate long outputs."""
     do_log = _should_truncate_and_log(group, whitelist)
+    limits = load_limits()
+    max_output_lines = limits['max_output_lines']
     finalized = []
     for seg in group:
         original_output = seg['output']   # CAPTURE BEFORE TRUNCATION
         _truncate_long_lines([seg])        # TRUNCATE LONG LINES (mutates seg['output'])
         lines = seg['output'].splitlines()
         output = seg['output']
-        if len(lines) > _MAX_OUTPUT_LINES and do_log:
-            remaining = len(lines) - _MAX_OUTPUT_LINES
+        if len(lines) > max_output_lines and do_log:
+            remaining = len(lines) - max_output_lines
             _truncated_commands_log.append({
                 'device': _extract_device_name(seg['prompt']),
                 'command': seg['command'],
                 'total_lines': len(lines),
-                'kept_lines': _MAX_OUTPUT_LINES,
+                'kept_lines': max_output_lines,
                 'omitted_lines': remaining,
                 'full_output': original_output,   # LOGS THE TRULY ORIGINAL OUTPUT
             })
-            lines = lines[:_MAX_OUTPUT_LINES]
+            lines = lines[:max_output_lines]
             output = '\n'.join(lines)
         finalized.append({
             'prompt': seg['prompt'],
@@ -482,6 +533,9 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page(viewport={'width': 1200, 'height': 900})
 
+        limits = load_limits()
+        screenshot_width = limits['screenshot_width']
+
         try:
             # Per-NE baseline tracker for display device output
             # Stores {safe_device: {'cards': [...], 'filepath': '...'}}
@@ -492,7 +546,7 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
             removed_dir = os.path.normpath(os.path.join(output_dir, '..', 'removeddevicetest'))
 
             for idx, group in enumerate(grouped_segments):
-                html_content = template.render(blocks=group)
+                html_content = template.render(blocks=group, screenshot_width=screenshot_width)
                 await page.set_content(html_content)
                 element = await page.wait_for_selector('#capture-area')
 

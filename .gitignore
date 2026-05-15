@@ -73,6 +73,9 @@ logs/
 # Example / generated documentation directory
 example_doc/
 
+# Sisyphus workflow state (plans, boulders, notepads)
+.sisyphus/
+
 # =============================================================================
 # Root-level scratch / temp files (anchored to avoid hitting tests/)
 # =============================================================================

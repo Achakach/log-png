@@ -1,0 +1,169 @@
+import pytest
+import sys
+import json
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import putpnginxlsx_v2
+
+
+# --- _extract_device_from_filename tests ---
+
+def test_device_extraction():
+    assert (
+        putpnginxlsx_v2._extract_device_from_filename(
+            "HW-Core-BKK-01 display device.png"
+        )
+        == "HW-Core-BKK-01"
+    )
+    assert (
+        putpnginxlsx_v2._extract_device_from_filename("HW-BR-Edge-01.png")
+        == "HW-BR-Edge-01"
+    )
+
+
+# --- _group_pngs_by_device tests ---
+
+def test_group_pngs_by_device():
+    paths = [
+        "scr/HW-C01 display device.png",
+        "scr/HW-C01 display clock.png",
+        "scr/HW-C02 display device.png",
+        "scr/HW-C02 dis cur.png",
+    ]
+    groups = putpnginxlsx_v2._group_pngs_by_device(
+        paths, ["display device", "display clock"]
+    )
+    assert list(groups.keys()) == ["HW-C01", "HW-C02"]
+    assert len(groups["HW-C01"]) == 2
+    assert len(groups["HW-C02"]) == 1
+    assert "scr/HW-C02 dis cur.png" not in groups.get("HW-C02", [])
+
+
+# --- _columns_for_image tests ---
+
+def test_columns_for_image(monkeypatch):
+    class MockImage:
+        def __init__(self, path):
+            self.width = 800
+            self.height = 600
+
+    monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImage)
+    result = putpnginxlsx_v2._columns_for_image("fake.png")
+    assert result == (13, 800, 600)
+
+    class MockImageSmall:
+        def __init__(self, path):
+            self.width = 100
+            self.height = 50
+
+    monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImageSmall)
+    result = putpnginxlsx_v2._columns_for_image("fake.png")
+    assert result == (3, 100, 50)
+
+
+# --- _next_column tests ---
+
+def test_next_column():
+    assert putpnginxlsx_v2._next_column("B", 13) == "O"
+    assert putpnginxlsx_v2._next_column("A", 3) == "D"
+
+
+# --- _parse_cell tests ---
+
+def test_parse_cell():
+    assert putpnginxlsx_v2._parse_cell("B2") == ("B", 2)
+    assert putpnginxlsx_v2._parse_cell("AA10") == ("AA", 10)
+
+
+def test_parse_cell_invalid():
+    with pytest.raises(ValueError):
+        putpnginxlsx_v2._parse_cell("invalid")
+
+
+# --- load_config tests ---
+
+def test_load_config_validation(monkeypatch, tmp_path, capsys):
+    cfg_file = tmp_path / "config.json"
+    cfg_file.write_text(
+        json.dumps(
+            {
+                "xlsx_input": "template.xlsx",
+                "xlsx_output": "output.xlsx",
+                "png_path": "screenshots/*.png",
+                "sheet_configs": [["NetworkReport", "display device"]],
+                "start_cell": "B2",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        putpnginxlsx_v2, "get_config_path", lambda: str(cfg_file)
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        putpnginxlsx_v2.load_config()
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "Missing config fields" in captured.out
+
+
+# --- main gallery layout tests ---
+
+def test_main_gallery_layout(monkeypatch, tmp_path):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    monkeypatch.setattr(putpnginxlsx_v2, "load_workbook", lambda path: wb)
+    monkeypatch.setattr(putpnginxlsx_v2.os.path, "exists", lambda path: True)
+    monkeypatch.setattr(wb, "save", lambda filename: None)
+
+    cfg = {
+        "xlsx_input": "fake.xlsx",
+        "xlsx_output": str(tmp_path / "output.xlsx"),
+        "png_path": "scr/*.png",
+        "sheet_configs": [
+            ["NetworkReport", "display device"],
+            ["NetworkReport", "display clock"],
+        ],
+        "start_cell": "B2",
+        "image_col_gap": 3,
+        "device_row_gap": 3,
+    }
+    cfg_file = tmp_path / "config.json"
+    cfg_file.write_text(json.dumps(cfg))
+
+    monkeypatch.setattr(
+        putpnginxlsx_v2, "get_config_path", lambda: str(cfg_file)
+    )
+
+    mock_pngs = [
+        "scr/HW-C01 display device.png",
+        "scr/HW-C01 display clock.png",
+        "scr/HW-C02 display device.png",
+    ]
+
+    class MockGlob:
+        @staticmethod
+        def glob(pattern):
+            return mock_pngs
+
+    monkeypatch.setattr(putpnginxlsx_v2, "glob", MockGlob())
+
+    class MockImg:
+        def __init__(self, path):
+            self.path = path
+            self.width = 800
+            self.height = 600
+
+    monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImg)
+
+    putpnginxlsx_v2.main()
+
+    ws = wb["NetworkReport"]
+    assert ws["A2"].value == "HW-C01"
+    assert ws["A2"].font.bold
+    assert ws["A5"].value == "HW-C02"
+    assert ws["A5"].font.bold
+    assert len(ws._images) == 3

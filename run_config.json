@@ -4,5 +4,8 @@
   "whitelist": [
     "stelnet 10.1.1.1",
     "stelnet 10.10.10.10"
-  ]
+  ],
+  "max_line_length": 130,
+  "max_output_lines": 70,
+  "screenshot_width": 1000
 }

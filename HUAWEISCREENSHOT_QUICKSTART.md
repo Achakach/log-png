@@ -112,6 +112,11 @@ system-view                                                   0          1      
 
 ### REMARK about this => the part that want to match a certain file type please change a file type in the docx to match ex. startup saved-configuration xxx.zip if in the log is .cfg please change .zip to .cfg
                       => this is the only script that can handle abbreviation
+### REMARK about this => for username matching, use square brackets [Router] for the username line:
+                      =>   <HUAWEI>dis cur              ← command (angle brackets, correct)
+                      =>   [HUAWEI]username kacha1     ← username (square brackets, required)
+                      =>   <TUC-TEST01>                ← node (angle brackets, correct)
+                      => using <HUAWEI>username kacha1 (angle brackets) will split the block and may fail to match
 ---
 
 ### `putpnginxlsx.exe` — Excel Inserter

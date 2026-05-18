@@ -128,5 +128,25 @@ def test_shorter_filename_preference_no_username():
     assert result.endswith('display cpu.png')
 
 
+class MockParagraph:
+    def __init__(self, text):
+        self.text = text
+
+
+def test_username_line_does_not_flush_block():
+    """<Router>username VALUE should not flush previous block — should stay in same block."""
+    from putpnginword import parse_paragraphs_detailed
+    paragraphs = [
+        MockParagraph('<HUAWEI>dis cur'),
+        MockParagraph('<HUAWEI>username kacha1'),
+        MockParagraph('<TUC-TEST01>'),
+    ]
+    blocks = parse_paragraphs_detailed(paragraphs)
+    # Should be ONE block, not two
+    assert len(blocks) == 1, f"Expected 1 block, got {len(blocks)}: {blocks}"
+    assert blocks[0][0] == ['dis cur', 'username kacha1'], f"Commands: {blocks[0][0]}"
+    assert blocks[0][1] == [('TUC-TEST01', 2)]
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

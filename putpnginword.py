@@ -12,6 +12,8 @@ from docx.oxml.ns import qn
 from word_com_embed import embed_txt_via_word
 from filename_utils import sanitize_filename
 
+NOISE_COMMANDS = {'username'}
+
 
 def get_base_dir():
     """Get the directory where the .exe or .py script lives."""
@@ -203,7 +205,8 @@ def parse_paragraphs(paragraphs):
                 if (prompt.startswith('<') and
                         not prompt.startswith('<~') and
                         not prompt.startswith('<*') and
-                        current_commands):
+                        current_commands and
+                        cmd.split()[0].lower() not in NOISE_COMMANDS):
                     blocks.append((current_commands, nodes))
                     current_commands = []
                     nodes = []
@@ -221,7 +224,7 @@ def parse_paragraphs_detailed(paragraphs):
 
     Same logic as parse_paragraphs(), but returns paragraph indices for each node.
     Also detects "Error:" in output text after a command to mark blocks that expect
-    an [error] PNG. Filters out noise commands like "username".
+    an [error] PNG. Noise commands like "username" are handled in block matching, not filtered here.
 
     Returns list of (commands, [(node, para_idx), ...], expect_error) tuples.
     """
@@ -269,7 +272,8 @@ def parse_paragraphs_detailed(paragraphs):
                 if (prompt.startswith('<') and
                         not prompt.startswith('<~') and
                         not prompt.startswith('<*') and
-                        current_commands):
+                        current_commands and
+                        cmd.split()[0].lower() not in NOISE_COMMANDS):
                     _flush_block()
 
                 current_commands.append(cmd)

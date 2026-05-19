@@ -201,6 +201,14 @@ def main():
         # Build a list of sorted device names
         sorted_devices = list(device_groups.keys())
 
+        # Write device headers in Row 1 (one row above start_row)
+        header_row = start_row - 1
+        for device_idx, device in enumerate(sorted_devices):
+            device_col = _next_column(start_col, device_idx * (1 + device_row_gap))
+            cell = ws[f"{device_col}{header_row}"]
+            cell.value = device
+            cell.font = Font(bold=True)
+
         # First pass: calculate max row_span for each keyword across all devices
         keyword_max_spans = {}
         keyword_any_found = {}
@@ -227,11 +235,6 @@ def main():
         # Second pass: place images and labels
         current_row = start_row
         for keyword in keywords:
-            # Write command label in Column A
-            cell = ws[f"A{current_row}"]
-            cell.value = keyword
-            cell.font = Font(bold=True)
-
             # For each device, place image at current_row in its column
             for device_idx, device in enumerate(sorted_devices):
                 device_col = _next_column(start_col, device_idx * (1 + device_row_gap))
@@ -277,10 +280,8 @@ def main():
             # Advance to next keyword position
             current_row += keyword_max_spans[keyword] + image_col_gap
 
-        # Set column A width
-        if keywords:
-            longest_kw = max(len(kw) for kw in keywords)
-            ws.column_dimensions["A"].width = min(50, max(12, longest_kw + 2))
+        # Column A is empty - set minimal width
+        ws.column_dimensions["A"].width = 2
 
     wb.save(xlsx_output)
     print(f"Saved: {xlsx_output}")

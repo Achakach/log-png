@@ -137,14 +137,15 @@ def test_main_vertical_layout(monkeypatch, tmp_path):
     putpnginxlsx_v3.main()
 
     ws = wb["NetworkReport"]
-    # First keyword label
-    assert ws["A2"].value == "display device"
-    assert ws["A2"].font.bold
-    # Second keyword label at row 2 + 63 (row_span) + 65 (image_col_gap) = 130
-    assert ws["A130"].value == "display clock"
-    assert ws["A130"].font.bold
+    # Device headers in Row 1
+    assert ws["B1"].value == "HW-C01"
+    assert ws["B1"].font.bold
+    # For device_idx=1: _next_column('B', 1*(1+3)) = 'B'+4 = 'F'
+    assert ws["F1"].value == "HW-C02"
+    assert ws["F1"].font.bold
     # Total images placed
     assert len(ws._images) == 3
     # Column widths
     assert ws.column_dimensions["B"].width == 18.75
-    assert ws.column_dimensions["A"].width == 16
+    # Column A is empty
+    assert ws.column_dimensions["A"].width == 2

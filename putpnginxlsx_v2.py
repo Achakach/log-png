@@ -135,15 +135,6 @@ def _columns_for_image(img_path):
     return col_span, img.width, img.height
 
 
-def _rows_for_image(img_path):
-    """Calculate row span from PNG native height."""
-    img = OpenpyxlImage(img_path)
-    native_w, native_h = img.width, img.height
-    # Excel row height ≈ 0.21 inches ≈ 15 pixels at 96 DPI
-    row_span = max(3, math.ceil(native_h / 96 / 0.21))
-    return row_span, native_w, native_h
-
-
 def _next_column(col_letter, offset):
     """Advance column letter by offset.
     _next_column('B', 13+3) -> 'P'
@@ -216,7 +207,7 @@ def main():
             cell.font = Font(bold=True)
 
             current_col = start_col
-            max_row_span = 1
+            max_target_h_pixels = 0
 
             for keyword in keywords:
                 keyword_lower = keyword.lower()
@@ -231,7 +222,6 @@ def main():
                         col_span, native_w, native_h = _columns_for_image(
                             matched_png
                         )
-                        row_span = _rows_for_image(matched_png)[0]
                     except Exception as e:
                         print(
                             f"WARNING: Could not read image dimensions for "
@@ -240,11 +230,11 @@ def main():
                         col_span = 3
                         native_w = 192
                         native_h = 144
-                        row_span = max(3, math.ceil(native_h / 96 / 0.21))
 
                     target_w_pixels = col_span * 64
                     scale = target_w_pixels / native_w if native_w else 1
                     target_h_pixels = int(native_h * scale) if native_w else native_h
+                    max_target_h_pixels = max(max_target_h_pixels, target_h_pixels)
 
                     img = OpenpyxlImage(matched_png)
                     img.width = target_w_pixels
@@ -258,8 +248,6 @@ def main():
                         f"({img.width}x{img.height}px)"
                     )
 
-                    max_row_span = max(max_row_span, row_span)
-
                     current_col = _next_column(
                         current_col, col_span + image_col_gap
                     )
@@ -267,12 +255,11 @@ def main():
                     # No image for this keyword; advance by a default span
                     current_col = _next_column(current_col, 3 + image_col_gap)
 
-            end_row = current_row + max_row_span - 1
-            if max_row_span > 1:
-                ws.merge_cells(f"A{current_row}:A{end_row}")
+            if max_target_h_pixels > 0:
+                ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75
             ws[f"A{current_row}"].alignment = Alignment(horizontal="center", vertical="center")
 
-            current_row += max_row_span + device_row_gap
+            current_row += device_row_gap
 
         # Auto-fit column A width based on longest device name
         if device_groups:

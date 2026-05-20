@@ -158,7 +158,6 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
             self.height = 600
 
     monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImg)
-    monkeypatch.setattr(putpnginxlsx_v2, "_rows_for_image", lambda p: (5, 800, 600))
 
     putpnginxlsx_v2.main()
 
@@ -167,16 +166,16 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
     assert ws["A2"].font.bold
     assert ws["A2"].alignment.vertical == "center"
     assert ws["A2"].alignment.horizontal == "center"
-    assert ws["A10"].value == "HW-C02"
-    assert ws["A10"].font.bold
-    assert ws["A10"].alignment.vertical == "center"
-    assert ws["A10"].alignment.horizontal == "center"
-    merged_ranges = [str(r) for r in ws.merged_cells.ranges]
-    assert any("A2:A6" in r for r in merged_ranges)
+    assert ws["A5"].value == "HW-C02"
+    assert ws["A5"].font.bold
+    assert ws["A5"].alignment.vertical == "center"
+    assert ws["A5"].alignment.horizontal == "center"
+    assert ws.row_dimensions[2].height == 468
+    assert ws.row_dimensions[5].height == 468
     assert len(ws._images) == 3
 
 
-def test_device_label_merged_and_centered(monkeypatch, tmp_path):
+def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -213,7 +212,6 @@ def test_device_label_merged_and_centered(monkeypatch, tmp_path):
             self.height = 600
 
     monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImg)
-    monkeypatch.setattr(putpnginxlsx_v2, "_rows_for_image", lambda p: (5, 800, 600))
 
     putpnginxlsx_v2.main()
 
@@ -222,6 +220,5 @@ def test_device_label_merged_and_centered(monkeypatch, tmp_path):
     assert ws["A2"].font.bold
     assert ws["A2"].alignment.horizontal == "center"
     assert ws["A2"].alignment.vertical == "center"
-    merged_ranges = [str(r) for r in ws.merged_cells.ranges]
-    assert any("A2:A6" in r for r in merged_ranges)
+    assert ws.row_dimensions[2].height == 468
     assert len(ws._images) == 1

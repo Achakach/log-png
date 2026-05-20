@@ -34,7 +34,8 @@ _DEFAULT_CONFIG = {
     "start_cell": "B2",
     "image_col_gap": 3,
     "device_row_gap": 3,
-    "column_width_offset": 0
+    "column_width_offset": 0,
+    "row_height_offset": 0
 }
 
 
@@ -81,7 +82,8 @@ def load_config():
     required = {
         "xlsx_input", "xlsx_output", "png_path", "sheet_configs",
         "start_cell", "image_col_gap", "device_row_gap",
-        "column_width_offset"
+        "column_width_offset",
+        "row_height_offset"
     }
     missing = required - set(cfg.keys())
     if missing:
@@ -255,7 +257,7 @@ def main():
                     current_col = _next_column(current_col, 1 + image_col_gap)
 
             if max_target_h_pixels > 0:
-                ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75
+                ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75 + cfg["row_height_offset"]
             ws[f"A{current_row}"].alignment = Alignment(horizontal="center", vertical="center")
 
             current_row += 1 + device_row_gap

@@ -112,13 +112,22 @@ def _extract_device_from_filename(png_path):
     return name.split()[0] if name.split() else base
 
 
-def _group_pngs_by_device(png_paths, keywords):
-    """Filter PNGs by keywords and group by device name."""
-    keywords_lower = [kw.lower() for kw in keywords]
+def _group_pngs_by_device(png_paths, keywords, abbrev_list=None):
+    """Filter PNGs by keywords and group by device name.
+
+    Supports bidirectional abbreviation matching: abbreviations in both
+    the config keywords and PNG filenames are expanded before comparing.
+    """
+    abbrev_list = abbrev_list or []
+    # Expand abbreviations in keywords (idempotent if already expanded)
+    keywords_lower = [_expand_abbreviation(kw.lower(), abbrev_list) for kw in keywords]
     matched = []
     for p in png_paths:
         base_lower = os.path.basename(p).lower()
-        if any(kw in base_lower for kw in keywords_lower):
+        # Strip .png before expanding abbreviations in filename
+        name_for_match = base_lower[:-4] if base_lower.endswith(".png") else base_lower
+        expanded_base = _expand_abbreviation(name_for_match, abbrev_list)
+        if any(kw in base_lower or kw in expanded_base for kw in keywords_lower):
             matched.append(p)
 
     groups = {}
@@ -219,7 +228,7 @@ def main():
         expanded_keywords = [_expand_abbreviation(kw, abbrev_list) for kw in keywords]
 
         # Group PNGs by device using EXPANDED keywords
-        device_groups = _group_pngs_by_device(png_files, expanded_keywords)
+        device_groups = _group_pngs_by_device(png_files, expanded_keywords, abbrev_list)
 
         if not device_groups:
             print(
@@ -262,7 +271,10 @@ def main():
                 matched_png = None
                 for p in device_pngs:
                     base_lower = os.path.basename(p).lower()
-                    if keyword_lower in base_lower or expanded_lower in base_lower:
+                    name_for_match = base_lower[:-4] if base_lower.endswith(".png") else base_lower
+                    expanded_base = _expand_abbreviation(name_for_match, abbrev_list)
+                    if (keyword_lower in base_lower or expanded_lower in base_lower or
+                        keyword_lower in expanded_base or expanded_lower in expanded_base):
                         matched_png = p
                         break
 

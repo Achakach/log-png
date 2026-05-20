@@ -391,3 +391,35 @@ def test_header_with_abbreviation(monkeypatch, tmp_path):
     assert ws["B1"].alignment.horizontal == "center"
     assert ws["B1"].alignment.vertical == "center"
     assert len(ws._images) == 1
+
+
+def test_bidirectional_abbreviation_match(monkeypatch):
+    """Config with full command matches PNG with abbreviation, and vice versa."""
+    from putpnginxlsx_v2 import _group_pngs_by_device
+
+    # Use known abbreviations directly (tuple list format)
+    abbrev_list = [
+        ("dis dev", "display device"),
+        ("dis", "display"),
+        ("dev", "device"),
+    ]
+
+    # Case 1: Config has full command, PNG has abbreviation
+    mock_pngs = ["scr/HW-C01 dis dev.png"]
+    groups = _group_pngs_by_device(mock_pngs, ["display device"], abbrev_list)
+    assert "HW-C01" in groups
+
+    # Case 2: Config has abbreviation, PNG has full command
+    mock_pngs = ["scr/HW-C01 display device.png"]
+    groups = _group_pngs_by_device(mock_pngs, ["dis dev"], abbrev_list)
+    assert "HW-C01" in groups
+
+    # Case 3: Both have abbreviations
+    mock_pngs = ["scr/HW-C01 dis dev.png"]
+    groups = _group_pngs_by_device(mock_pngs, ["dis dev"], abbrev_list)
+    assert "HW-C01" in groups
+
+    # Case 4: Both have full command
+    mock_pngs = ["scr/HW-C01 display device.png"]
+    groups = _group_pngs_by_device(mock_pngs, ["display device"], abbrev_list)
+    assert "HW-C01" in groups

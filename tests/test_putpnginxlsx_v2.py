@@ -145,12 +145,12 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
     assert ws["A2"].font.bold
     assert ws["A2"].alignment.vertical == "center"
     assert ws["A2"].alignment.horizontal == "center"
-    assert ws["A5"].value == "HW-C02"
-    assert ws["A5"].font.bold
-    assert ws["A5"].alignment.vertical == "center"
-    assert ws["A5"].alignment.horizontal == "center"
+    assert ws["A6"].value == "HW-C02"
+    assert ws["A6"].font.bold
+    assert ws["A6"].alignment.vertical == "center"
+    assert ws["A6"].alignment.horizontal == "center"
     assert ws.row_dimensions[2].height == 450
-    assert ws.row_dimensions[5].height == 450
+    assert ws.row_dimensions[6].height == 450
     assert len(ws._images) == 3
     assert ws.column_dimensions["B"].width == 800 / 7
 

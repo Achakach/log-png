@@ -254,7 +254,7 @@ def main():
                 ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75
             ws[f"A{current_row}"].alignment = Alignment(horizontal="center", vertical="center")
 
-            current_row += device_row_gap
+            current_row += 1 + device_row_gap
 
         # Auto-fit column A width based on longest device name
         if device_groups:

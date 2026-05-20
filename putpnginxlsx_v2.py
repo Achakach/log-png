@@ -65,7 +65,7 @@ def load_config():
     """Read and validate config.json."""
     _ensure_config()
     cfg_path = get_config_path()
-    with open(cfg_path, "r", encoding="utf-8") as f:
+    with open(cfg_path, "r", encoding="utf-8-sig") as f:
         cfg = json.load(f)
 
     raw_sheets = cfg.get("sheet_configs", [])

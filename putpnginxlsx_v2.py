@@ -33,7 +33,8 @@ _DEFAULT_CONFIG = {
     ],
     "start_cell": "B2",
     "image_col_gap": 3,
-    "device_row_gap": 3
+    "device_row_gap": 3,
+    "column_width_offset": 0
 }
 
 
@@ -79,7 +80,8 @@ def load_config():
 
     required = {
         "xlsx_input", "xlsx_output", "png_path", "sheet_configs",
-        "start_cell", "image_col_gap", "device_row_gap"
+        "start_cell", "image_col_gap", "device_row_gap",
+        "column_width_offset"
     }
     missing = required - set(cfg.keys())
     if missing:
@@ -238,7 +240,9 @@ def main():
 
                     cell_ref = f"{current_col}{current_row}"
                     ws.add_image(img, cell_ref)
-                    ws.column_dimensions[current_col].width = max(12, target_w_pixels / 7)
+                    ws.column_dimensions[current_col].width = max(
+                        12, target_w_pixels / 7 + cfg["column_width_offset"]
+                    )
                     print(
                         f"[{sheet_name}] {device} / "
                         f"{os.path.basename(matched_png)} at {cell_ref} "

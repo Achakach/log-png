@@ -109,6 +109,7 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
         "start_cell": "B2",
         "image_col_gap": 3,
         "device_row_gap": 3,
+        "column_width_offset": 0,
     }
     cfg_file = tmp_path / "config.json"
     cfg_file.write_text(json.dumps(cfg))
@@ -155,6 +156,52 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
     assert ws.column_dimensions["B"].width == 800 / 7
 
 
+def test_column_width_offset(monkeypatch, tmp_path):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    monkeypatch.setattr(putpnginxlsx_v2, "load_workbook", lambda path: wb)
+    monkeypatch.setattr(putpnginxlsx_v2.os.path, "exists", lambda path: True)
+    monkeypatch.setattr(wb, "save", lambda filename: None)
+
+    cfg = {
+        "xlsx_input": "fake.xlsx",
+        "xlsx_output": str(tmp_path / "output.xlsx"),
+        "png_path": "scr/*.png",
+        "sheet_configs": [["NetworkReport", "display device"]],
+        "start_cell": "B2",
+        "image_col_gap": 3,
+        "device_row_gap": 3,
+        "column_width_offset": 5,
+    }
+    cfg_file = tmp_path / "config.json"
+    cfg_file.write_text(json.dumps(cfg))
+    monkeypatch.setattr(putpnginxlsx_v2, "get_config_path", lambda: str(cfg_file))
+
+    mock_pngs = ["scr/HW-C01 display device.png"]
+
+    class MockGlob:
+        @staticmethod
+        def glob(pattern):
+            return mock_pngs
+
+    monkeypatch.setattr(putpnginxlsx_v2, "glob", MockGlob())
+
+    class MockImg:
+        def __init__(self, path):
+            self.path = path
+            self.width = 800
+            self.height = 600
+
+    monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImg)
+
+    putpnginxlsx_v2.main()
+
+    ws = wb["NetworkReport"]
+    assert ws.column_dimensions["B"].width == 800 / 7 + 5
+    assert len(ws._images) == 1
+
+
 def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
     from openpyxl import Workbook
 
@@ -171,6 +218,7 @@ def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
         "start_cell": "B2",
         "image_col_gap": 3,
         "device_row_gap": 3,
+        "column_width_offset": 0,
     }
     cfg_file = tmp_path / "config.json"
     cfg_file.write_text(json.dumps(cfg))

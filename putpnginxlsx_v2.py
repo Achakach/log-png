@@ -257,7 +257,7 @@ def main():
                     current_col = _next_column(current_col, 1 + image_col_gap)
 
             if max_target_h_pixels > 0:
-                ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75 + cfg["row_height_offset"]
+                ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75 + cfg["row_height_offset"] * 5
             ws[f"A{current_row}"].alignment = Alignment(horizontal="center", vertical="center")
 
             current_row += 1 + device_row_gap

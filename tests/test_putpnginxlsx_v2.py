@@ -247,7 +247,7 @@ def test_row_height_offset(monkeypatch, tmp_path):
     putpnginxlsx_v2.main()
 
     ws = wb["NetworkReport"]
-    assert ws.row_dimensions[2].height == 600 * 0.75 + 10
+    assert ws.row_dimensions[2].height == 600 * 0.75 + 10 * 5
     assert len(ws._images) == 1
 
 

@@ -1,10 +1,7 @@
 {
   "logs_dir": "logs",
   "output_dir": "screenshots",
-  "whitelist": [
-    "stelnet 10.1.1.1",
-    "stelnet 10.10.10.10"
-  ],
+  "whitelist": [],
   "max_line_length": 130,
   "max_output_lines": 70,
   "screenshot_width": 1000

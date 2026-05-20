@@ -102,8 +102,8 @@ def test_main_vertical_layout(monkeypatch, tmp_path):
             ["NetworkReport", "display clock"],
         ],
         "start_cell": "B2",
-        "image_col_gap": 65,
-        "device_row_gap": 3,
+        "image_row_gap": 65,
+        "device_col_gap": 3,
     }
     cfg_file = tmp_path / "config.json"
     cfg_file.write_text(json.dumps(cfg))

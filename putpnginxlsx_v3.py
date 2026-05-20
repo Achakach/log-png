@@ -32,8 +32,8 @@ _DEFAULT_CONFIG = {
         ["NetworkReport", "display clock"]
     ],
     "start_cell": "B2",
-    "image_col_gap": 65,
-    "device_row_gap": 3
+    "image_row_gap": 65,
+    "device_col_gap": 3
 }
 
 
@@ -77,9 +77,17 @@ def load_config():
         print("ERROR: 'sheet_configs' must be a list of [sheet_name, keyword] pairs.")
         sys.exit(1)
 
+    # Backward compatibility: map old names to new names
+    if "image_col_gap" in cfg and "image_row_gap" not in cfg:
+        cfg["image_row_gap"] = cfg.pop("image_col_gap")
+        print("WARNING: 'image_col_gap' is deprecated, use 'image_row_gap'")
+    if "device_row_gap" in cfg and "device_col_gap" not in cfg:
+        cfg["device_col_gap"] = cfg.pop("device_row_gap")
+        print("WARNING: 'device_row_gap' is deprecated, use 'device_col_gap'")
+
     required = {
         "xlsx_input", "xlsx_output", "png_path", "sheet_configs",
-        "start_cell", "image_col_gap", "device_row_gap"
+        "start_cell", "image_row_gap", "device_col_gap"
     }
     missing = required - set(cfg.keys())
     if missing:
@@ -152,8 +160,8 @@ def main():
     png_path = cfg["png_path"]
     sheet_configs = cfg["sheet_configs"]
     start_cell = cfg["start_cell"]
-    image_col_gap = cfg["image_col_gap"]
-    device_row_gap = cfg["device_row_gap"]
+    image_row_gap = cfg["image_row_gap"]
+    device_col_gap = cfg["device_col_gap"]
 
     if not os.path.exists(xlsx_input):
         print(f"ERROR: Input file not found: {xlsx_input}")
@@ -204,7 +212,7 @@ def main():
         # Write device headers in Row 1 (one row above start_row)
         header_row = start_row - 1
         for device_idx, device in enumerate(sorted_devices):
-            device_col = _next_column(start_col, device_idx * (1 + device_row_gap))
+            device_col = _next_column(start_col, device_idx * (1 + device_col_gap))
             cell = ws[f"{device_col}{header_row}"]
             cell.value = device
             cell.font = Font(bold=True)
@@ -237,7 +245,7 @@ def main():
         for keyword in keywords:
             # For each device, place image at current_row in its column
             for device_idx, device in enumerate(sorted_devices):
-                device_col = _next_column(start_col, device_idx * (1 + device_row_gap))
+                device_col = _next_column(start_col, device_idx * (1 + device_col_gap))
 
                 keyword_lower = keyword.lower()
                 matched_png = None
@@ -278,7 +286,7 @@ def main():
                     ws.column_dimensions[device_col].width = 12
 
             # Advance to next keyword position
-            current_row += keyword_max_spans[keyword] + image_col_gap
+            current_row += keyword_max_spans[keyword] + image_row_gap
 
         # Column A is empty - set minimal width
         ws.column_dimensions["A"].width = 2

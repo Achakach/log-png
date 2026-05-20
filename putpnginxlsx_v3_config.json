@@ -3,10 +3,16 @@
   "xlsx_output": "output.xlsx",
   "png_path": "screenshots/*.png",
   "sheet_configs": [
-    ["NetworkReport", "display device"],
-    ["NetworkReport", "display clock"]
+    [
+      "NetworkReport",
+      "display device"
+    ],
+    [
+      "NetworkReport",
+      "display clock"
+    ]
   ],
   "start_cell": "B2",
-  "image_col_gap": 65,
-  "device_row_gap": 3
+  "image_row_gap": 65,
+  "device_col_gap": 3
 }

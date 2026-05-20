@@ -132,6 +132,26 @@ def _group_pngs_by_device(png_paths, keywords):
     return dict(sorted(groups.items()))
 
 
+def _load_abbreviations():
+    """Load abbreviation list from JSON file."""
+    abb_path = os.path.join(get_base_dir(), "abbreviations.json")
+    if not os.path.exists(abb_path):
+        return []
+    with open(abb_path, "r", encoding="utf-8-sig") as f:
+        return json.load(f).get("abbreviations", [])
+
+
+def _expand_abbreviation(text, abbrev_list):
+    """Expand abbreviations in text (longest-first)."""
+    expanded = text
+    for abbrev, full in sorted(abbrev_list, key=lambda x: len(x[0]), reverse=True):
+        pattern = re.compile(
+            r"(^|\s)" + re.escape(abbrev) + r"($|\s)", re.IGNORECASE
+        )
+        expanded = pattern.sub(r"\1" + full + r"\2", expanded)
+    return expanded
+
+
 def _native_dimensions(img_path):
     """Return the native (width, height) of a PNG in pixels."""
     img = OpenpyxlImage(img_path)
@@ -185,8 +205,12 @@ def main():
                 keywords.append(kw)
                 seen_keywords.add(kw)
 
-        # Group PNGs by device
-        device_groups = _group_pngs_by_device(png_files, keywords)
+        # Load and expand abbreviations
+        abbrev_list = _load_abbreviations()
+        expanded_keywords = [_expand_abbreviation(kw, abbrev_list) for kw in keywords]
+
+        # Group PNGs by device using EXPANDED keywords
+        device_groups = _group_pngs_by_device(png_files, expanded_keywords)
 
         if not device_groups:
             print(
@@ -207,7 +231,7 @@ def main():
         header_row = start_row - 1
         if header_row >= 1:
             header_col = start_col
-            for keyword in keywords:
+            for keyword in expanded_keywords:
                 cell = ws[f"{header_col}{header_row}"]
                 cell.value = keyword
                 cell.font = Font(bold=True)
@@ -223,11 +247,13 @@ def main():
             current_col = start_col
             max_target_h_pixels = 0
 
-            for keyword in keywords:
+            for keyword, expanded_kw in zip(keywords, expanded_keywords):
                 keyword_lower = keyword.lower()
+                expanded_lower = expanded_kw.lower()
                 matched_png = None
                 for p in device_pngs:
-                    if keyword_lower in os.path.basename(p).lower():
+                    base_lower = os.path.basename(p).lower()
+                    if keyword_lower in base_lower or expanded_lower in base_lower:
                         matched_png = p
                         break
 

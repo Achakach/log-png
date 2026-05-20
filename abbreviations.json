@@ -1,0 +1,13 @@
+{
+  "abbreviations": [
+    ["dis th", "display this"],
+    ["dis cur", "display current-configuration"],
+    ["dis cu", "display current-configuration"],
+    ["dis", "display"],
+    ["system", "system-view"],
+    ["sys", "system-view"],
+    ["comm", "commit"],
+    ["q", "quit"],
+    ["run", "run"]
+  ]
+}

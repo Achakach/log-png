@@ -1,159 +1,573 @@
 {
   "abbreviations": {
-    "display this": ["dis th"],
-    "display current-configuration": ["dis cu", "dis cur"],
-    "display saved-configuration": ["dis sav", "dis sa"],
-    "display version": ["dis ver", "dis v"],
-    "display interface": ["dis int", "dis i"],
-    "display interface brief": ["dis int b", "dis int br"],
-    "display interface description": ["dis int des", "dis int desc", "dis int de"],
-    "display ip interface brief": ["dis ip int b", "dis ip int br"],
-    "display ip routing-table": ["dis ip rou", "dis ip rou-t", "dis ip r"],
-    "display device": ["dis dev", "dis d"],
-    "display cpu-usage": ["dis cpu", "dis cpu-u"],
-    "display memory-usage": ["dis mem", "dis mem-u"],
-    "display alarm active": ["dis ala a", "dis ala ac", "dis ala act"],
-    "display alarm urgent": ["dis ala u", "dis ala ur", "dis ala urg"],
-    "display clock": ["dis clo", "dis cloc"],
-    "display acl": ["dis acl", "d acl"],
-    "display bgp peer": ["dis bgp pe", "d bgp p"],
-    "display bgp vpnv4 all": ["dis bgp vp all", "d bgp v a"],
-    "display bfd session": ["dis bfd se", "d bfd s"],
-    "display dhcp server": ["dis dh se", "d dh s"],
-    "display dhcp relay": ["dis dh re", "d dh r"],
-    "display igmp group": ["dis ig gr", "d ig g"],
-    "display ip vpn-instance": ["dis ip vp", "d ip v"],
-    "display ipsec policy": ["dis ips po", "d ips p"],
-    "display isis peer": ["dis is pe", "d is p"],
-    "display lldp neighbor": ["dis lldp ne", "d lldp n"],
-    "display mpls ldp": ["dis mpls ld", "d mpls l"],
-    "display mpls lsp": ["dis mpls ls", "d mpls l"],
-    "display multicast routing-table": ["dis mu rou", "d mu r"],
-    "display logbuffer": ["dis log", "dis logb", "dis logbu"],
-    "display mac-address": ["dis mac-a", "dis ma", "dis mac"],
-    "display arp": ["dis ar", "dis a"],
-    "display history-command": ["dis his", "dis hist"],
-    "display startup": ["dis sta", "dis star"],
-    "display esn": ["dis esn", "dis e"],
-    "display fib": ["dis fi", "dis fib"],
-    "display tcp": ["dis tc", "dis tcp"],
-    "display temperature all": ["dis temp a", "dis temp al"],
-    "display patch-information": ["dis pat", "dis patc"],
-    "display power": ["dis pow", "dis powe"],
-    "display fan": ["dis fan", "dis f"],
-    "display nat": ["dis nat", "d nat"],
-    "display nat outbound": ["dis nat out", "d nat o"],
-    "display ntp status": ["dis ntp st", "d ntp s"],
-    "display ospf peer": ["dis ospf pe", "d ospf p"],
-    "display ospf peer brief": ["dis ospf pe br", "d ospf p b"],
-    "display pim neighbor": ["dis pim ne", "d pim n"],
-    "display snmp-agent": ["dis snmp-a", "d snmp-a"],
-    "display ssh server status": ["dis ssh ser st", "d ssh s st"],
-    "display stp": ["dis stp", "d stp"],
-    "display stp brief": ["dis stp b", "d stp br"],
-    "display vrrp": ["dis vr", "d vr"],
-    "display vrrp brief": ["dis vr b", "d vr br"],
-    "display": ["dis"],
-    "system-view": ["system", "sys", "sy"],
-    "commit": ["comm", "com"],
-    "quit": ["q"],
-    "return": ["ret", "re"],
-    "reboot": ["reb", "rebo", "re"],
-    "super": ["super", "su"],
-    "sysname": ["sysname", "sysn"],
-    "save": ["sav", "sa"],
-    "undo": ["un", "u"],
-    "interface": ["int", "i"],
-    "shutdown": ["sh", "s"],
-    "undo shutdown": ["und sh", "un sh", "u sh", "un s", "u s"],
-    "description": ["des", "de", "d"],
-    "ip route-static": ["ip rou"],
-    "ip address": ["ip ad", "i ad", "ip a"],
-    "undo ip address": ["und ip ad", "un ip ad", "u ip ad", "u ip a"],
-    "duplex full": ["du f"],
-    "bandwidth": ["band", "ba"],
-    "speed": ["sp", "spe"],
-    "vlan": ["vl", "v"],
-    "vlan batch": ["vl ba"],
-    "name": ["na", "n"],
-    "link-type": ["l", "li"],
-    "access": ["ac", "acc"],
-    "trunk": ["tr", "tru"],
-    "hybrid": ["hy", "hyb"],
-    "tagged": ["ta", "tag"],
-    "untagged": ["un", "unt"],
-    "port link-type access": ["por l ac", "p l a"],
-    "port link-type trunk": ["por l tr", "p l t"],
-    "port link-type hybrid": ["por l hy", "p l h"],
-    "port default vlan": ["por de v", "p d v"],
-    "port trunk allow-pass vlan": ["por tr al v", "p t a v"],
-    "port trunk pvid vlan": ["por tr pv", "p t p v"],
-    "port hybrid tagged vlan": ["por hy ta v", "p h t v"],
-    "port hybrid untagged vlan": ["por hy un v", "p h u v"],
-    "port vlan-stacking": ["por vl-st", "p vl-s"],
-    "qinq termination": ["qin ter", "q t"],
-    "vlan mapping": ["vl ma", "v m"],
-    "mux-vlan": ["mu", "mux"],
-    "subordinate": ["sub", "subo"],
-    "group": ["gro", "grp"],
-    "ospf": ["os", "o"],
-    "router-id": ["rou", "ro", "r"],
-    "network": ["n", "net"],
-    "silent-interface": ["si", "sil"],
-    "bgp": ["bg", "b"],
-    "peer": ["pe", "per"],
-    "as-number": ["as", "a"],
-    "rip": ["ri", "r"],
-    "isis": ["is", "i"],
-    "import-route": ["imp", "im"],
-    "summary automatic": ["sum au", "s a"],
-    "undo summary": ["un sum", "u s"],
-    "rule": ["ru", "r"],
-    "permit": ["p", "pe"],
-    "deny": ["d", "den"],
-    "source": ["s", "so"],
-    "destination": ["des", "dst"],
-    "source-port": ["s-p", "sp"],
-    "destination-port": ["d-p", "dp"],
-    "packet-filter inbound": ["pac in", "p i"],
-    "traffic policy": ["tr po", "t p"],
-    "classifier": ["cl", "cla"],
-    "behavior": ["b", "be"],
-    "vrrp vrid virtual-ip": ["vr vr vi", "vr v vi"],
-    "vrrp vrid priority": ["vr vr pr", "vr v pr"],
-    "vrrp vrid preempt": ["vr vr pre", "vr v pre"],
-    "vrrp vrid track": ["vr vr tr", "vr v tr"],
-    "stack slot": ["sta sl", "st sl"],
-    "renumber": ["ren"],
-    "cluster enable": ["cl en", "cl e"],
-    "cluster priority": ["cl pr", "cl p"],
-    "ping": ["pin", "pi"],
-    "tracert": ["tra", "tr"],
-    "debugging": ["deb"],
-    "undo debugging": ["un deb", "u d"],
-    "undo debugging all": ["un deb all", "u d a"],
-    "packet-capture": ["pac", "pa"],
-    "packet-capture interface": ["pac int", "p i"],
-    "reset counters interface": ["res c i", "r c i", "res ci"],
-    "terminal monitor": ["ter mon", "t m"],
-    "undo terminal monitor": ["undo ter mon", "u t m"],
-    "dir": ["dir", "d"],
-    "cd": ["cd", "c"],
-    "ftp": ["ftp", "ft"],
-    "tftp": ["tftp", "tf"],
-    "http server": ["http ser", "h s"],
-    "user-interface": ["use-int", "ui"],
-    "user-interface console": ["use con", "uic"],
-    "user-interface vty": ["use vty", "u v"],
-    "authentication-mode": ["au", "a"],
-    "authentication-mode password": ["au pa", "a p"],
-    "authentication-mode aaa": ["au aaa", "a a"],
-    "local-user": ["loc", "lo"],
-    "password": ["pass", "pas"],
-    "cipher": ["ci", "cip"],
-    "simple": ["si", "sim"],
-    "privilege level": ["pri l", "pr l"],
-    "service-type": ["ser t", "se t"],
-    "idle-timeout": ["idl t", "i t"]
+    "display this": [
+      "dis th"
+    ],
+    "display current-configuration": [
+      "dis cu",
+      "dis cur"
+    ],
+    "display saved-configuration": [
+      "dis sav",
+      "dis sa"
+    ],
+    "display version": [
+      "dis ver",
+      "dis v"
+    ],
+    "display interface": [
+      "dis int",
+      "dis i"
+    ],
+    "display interface brief": [
+      "dis int b",
+      "dis int br"
+    ],
+    "display interface description": [
+      "dis int des",
+      "dis int desc",
+      "dis int de"
+    ],
+    "display ip interface brief": [
+      "dis ip int b",
+      "dis ip int br"
+    ],
+    "display ip routing-table": [
+      "dis ip rou",
+      "dis ip rou-t",
+      "dis ip r"
+    ],
+    "display device": [
+      "dis dev",
+      "dis d"
+    ],
+    "display cpu-usage": [
+      "dis cpu",
+      "dis cpu-u"
+    ],
+    "display memory-usage": [
+      "dis mem",
+      "dis mem-u"
+    ],
+    "display alarm active": [
+      "dis ala a",
+      "dis ala ac",
+      "dis ala act"
+    ],
+    "display alarm urgent": [
+      "dis ala u",
+      "dis ala ur",
+      "dis ala urg"
+    ],
+    "display clock": [
+      "dis clo",
+      "dis cloc"
+    ],
+    "display acl": [
+      "dis acl"
+    ],
+    "display bgp peer": [
+      "dis bgp pe"
+    ],
+    "display bgp vpnv4 all": [
+      "dis bgp vp all"
+    ],
+    "display bfd session": [
+      "dis bfd se"
+    ],
+    "display dhcp server": [
+      "dis dh se"
+    ],
+    "display dhcp relay": [
+      "dis dh re"
+    ],
+    "display igmp group": [
+      "dis ig gr"
+    ],
+    "display ip vpn-instance": [
+      "dis ip vp"
+    ],
+    "display ipsec policy": [
+      "dis ips po"
+    ],
+    "display isis peer": [
+      "dis is pe"
+    ],
+    "display lldp neighbor": [
+      "dis lldp ne"
+    ],
+    "display mpls ldp": [
+      "dis mpls ld"
+    ],
+    "display mpls lsp": [
+      "dis mpls ls"
+    ],
+    "display multicast routing-table": [
+      "dis mu rou"
+    ],
+    "display logbuffer": [
+      "dis log",
+      "dis logb",
+      "dis logbu"
+    ],
+    "display mac-address": [
+      "dis mac-a",
+      "dis ma",
+      "dis mac"
+    ],
+    "display arp": [
+      "dis ar",
+      "dis a"
+    ],
+    "display history-command": [
+      "dis his",
+      "dis hist"
+    ],
+    "display startup": [
+      "dis sta",
+      "dis star"
+    ],
+    "display esn": [
+      "dis esn",
+      "dis e"
+    ],
+    "display fib": [
+      "dis fi",
+      "dis fib"
+    ],
+    "display tcp": [
+      "dis tc",
+      "dis tcp"
+    ],
+    "display temperature all": [
+      "dis temp a",
+      "dis temp al"
+    ],
+    "display patch-information": [
+      "dis pat",
+      "dis patc"
+    ],
+    "display power": [
+      "dis pow",
+      "dis powe"
+    ],
+    "display fan": [
+      "dis fan",
+      "dis f"
+    ],
+    "display nat": [
+      "dis nat"
+    ],
+    "display nat outbound": [
+      "dis nat out"
+    ],
+    "display ntp status": [
+      "dis ntp st"
+    ],
+    "display ospf peer": [
+      "dis ospf pe"
+    ],
+    "display ospf peer brief": [
+      "dis ospf pe br"
+    ],
+    "display pim neighbor": [
+      "dis pim ne"
+    ],
+    "display snmp-agent": [
+      "dis snmp-a"
+    ],
+    "display ssh server status": [
+      "dis ssh ser st"
+    ],
+    "display stp": [
+      "dis stp"
+    ],
+    "display stp brief": [
+      "dis stp b"
+    ],
+    "display vrrp": [
+      "dis vr"
+    ],
+    "display vrrp brief": [
+      "dis vr b"
+    ],
+    "display": [
+      "dis"
+    ],
+    "system-view": [
+      "system",
+      "sys",
+      "sy"
+    ],
+    "commit": [
+      "comm",
+      "com"
+    ],
+    "quit": [
+      "q"
+    ],
+    "return": [
+      "ret",
+      "re"
+    ],
+    "reboot": [
+      "reb",
+      "rebo"
+    ],
+    "super": [
+      "super",
+      "su"
+    ],
+    "sysname": [
+      "sysname",
+      "sysn"
+    ],
+    "save": [
+      "sav",
+      "sa"
+    ],
+    "undo": [
+      "un"
+    ],
+    "interface": [
+      "int"
+    ],
+    "shutdown": [
+      "sh"
+    ],
+    "undo shutdown": [
+      "und sh",
+      "un sh",
+      "u sh"
+    ],
+    "description": [
+      "des",
+      "de"
+    ],
+    "ip route-static": [
+      "ip rou"
+    ],
+    "ip address": [
+      "ip ad",
+      "ip a"
+    ],
+    "undo ip address": [
+      "und ip ad",
+      "un ip ad"
+    ],
+    "duplex full": [
+      "du f"
+    ],
+    "bandwidth": [
+      "band",
+      "ba"
+    ],
+    "speed": [
+      "sp",
+      "spe"
+    ],
+    "vlan": [
+      "vl"
+    ],
+    "vlan batch": [
+      "vl ba"
+    ],
+    "name": [
+      "na"
+    ],
+    "link-type": [
+      "li"
+    ],
+    "access": [
+      "ac",
+      "acc"
+    ],
+    "trunk": [
+      "tr",
+      "tru"
+    ],
+    "hybrid": [
+      "hy",
+      "hyb"
+    ],
+    "tagged": [
+      "ta",
+      "tag"
+    ],
+    "untagged": [
+      "un",
+      "unt"
+    ],
+    "port link-type access": [
+      "por l ac",
+      "p l a"
+    ],
+    "port link-type trunk": [
+      "por l tr",
+      "p l t"
+    ],
+    "port link-type hybrid": [
+      "por l hy",
+      "p l h"
+    ],
+    "port default vlan": [
+      "por de v",
+      "p d v"
+    ],
+    "port trunk allow-pass vlan": [
+      "por tr al v",
+      "p t a v"
+    ],
+    "port trunk pvid vlan": [
+      "por tr pv",
+      "p t p v"
+    ],
+    "port hybrid tagged vlan": [
+      "por hy ta v",
+      "p h t v"
+    ],
+    "port hybrid untagged vlan": [
+      "por hy un v",
+      "p h u v"
+    ],
+    "port vlan-stacking": [
+      "por vl-st",
+      "p vl-s"
+    ],
+    "qinq termination": [
+      "qin ter",
+      "q t"
+    ],
+    "vlan mapping": [
+      "vl ma",
+      "v m"
+    ],
+    "mux-vlan": [
+      "mu",
+      "mux"
+    ],
+    "subordinate": [
+      "sub",
+      "subo"
+    ],
+    "group": [
+      "gro",
+      "grp"
+    ],
+    "ospf": [
+      "os"
+    ],
+    "router-id": [
+      "rou",
+      "ro"
+    ],
+    "network": [
+      "net"
+    ],
+    "silent-interface": [
+      "si",
+      "sil"
+    ],
+    "bgp": [
+      "bg"
+    ],
+    "peer": [
+      "pe",
+      "per"
+    ],
+    "as-number": [
+      "as"
+    ],
+    "rip": [
+      "ri"
+    ],
+    "isis": [
+      "is",
+      "i"
+    ],
+    "import-route": [
+      "imp"
+    ],
+    "summary automatic": [
+      "sum au"
+    ],
+    "undo summary": [
+      "un sum"
+    ],
+    "rule": [
+      "ru"
+    ],
+    "permit": [
+      "pe"
+    ],
+    "deny": [
+      "den"
+    ],
+    "source": [
+      "s",
+      "so"
+    ],
+    "destination": [
+      "des",
+      "dst"
+    ],
+    "source-port": [
+      "s-p",
+      "sp"
+    ],
+    "destination-port": [
+      "d-p",
+      "dp"
+    ],
+    "packet-filter inbound": [
+      "pac in"
+    ],
+    "traffic policy": [
+      "tr po"
+    ],
+    "classifier": [
+      "cl",
+      "cla"
+    ],
+    "behavior": [
+      "be"
+    ],
+    "vrrp vrid virtual-ip": [
+      "vr vr vi",
+      "vr v vi"
+    ],
+    "vrrp vrid priority": [
+      "vr vr pr",
+      "vr v pr"
+    ],
+    "vrrp vrid preempt": [
+      "vr vr pre",
+      "vr v pre"
+    ],
+    "vrrp vrid track": [
+      "vr vr tr",
+      "vr v tr"
+    ],
+    "stack slot": [
+      "sta sl",
+      "st sl"
+    ],
+    "renumber": [
+      "ren"
+    ],
+    "cluster enable": [
+      "cl en",
+      "cl e"
+    ],
+    "cluster priority": [
+      "cl pr",
+      "cl p"
+    ],
+    "ping": [
+      "pin",
+      "pi"
+    ],
+    "tracert": [
+      "tra",
+      "tr"
+    ],
+    "debugging": [
+      "deb"
+    ],
+    "undo debugging": [
+      "un deb"
+    ],
+    "undo debugging all": [
+      "un deb all"
+    ],
+    "packet-capture": [
+      "pac",
+      "pa"
+    ],
+    "packet-capture interface": [
+      "pac int",
+      "p i"
+    ],
+    "reset counters interface": [
+      "res c i",
+      "r c i",
+      "res ci"
+    ],
+    "terminal monitor": [
+      "ter mon",
+      "t m"
+    ],
+    "undo terminal monitor": [
+      "undo ter mon"
+    ],
+    "dir": [
+      "dir"
+    ],
+    "cd": [
+      "cd"
+    ],
+    "ftp": [
+      "ftp",
+      "ft"
+    ],
+    "tftp": [
+      "tftp",
+      "tf"
+    ],
+    "http server": [
+      "http ser",
+      "h s"
+    ],
+    "user-interface": [
+      "use-int",
+      "ui"
+    ],
+    "user-interface console": [
+      "use con",
+      "uic"
+    ],
+    "user-interface vty": [
+      "use vty",
+      "u v"
+    ],
+    "authentication-mode": [
+      "au"
+    ],
+    "authentication-mode password": [
+      "au pa",
+      "a p"
+    ],
+    "authentication-mode aaa": [
+      "au aaa",
+      "a a"
+    ],
+    "local-user": [
+      "loc",
+      "lo"
+    ],
+    "password": [
+      "pass",
+      "pas"
+    ],
+    "cipher": [
+      "ci",
+      "cip"
+    ],
+    "simple": [
+      "si",
+      "sim"
+    ],
+    "privilege level": [
+      "pri l",
+      "pr l"
+    ],
+    "service-type": [
+      "ser t",
+      "se t"
+    ],
+    "idle-timeout": [
+      "idl t",
+      "i t"
+    ]
   }
 }

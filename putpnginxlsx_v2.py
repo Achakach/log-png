@@ -133,12 +133,21 @@ def _group_pngs_by_device(png_paths, keywords):
 
 
 def _load_abbreviations():
-    """Load abbreviation list from JSON file."""
+    """Load abbreviation list from JSON file.
+
+    JSON format: {"abbreviations": {"full_command": ["abbr1", "abbr2"]}}
+    Returns flat list of (abbrev, full) tuples.
+    """
     abb_path = os.path.join(get_base_dir(), "abbreviations.json")
     if not os.path.exists(abb_path):
         return []
     with open(abb_path, "r", encoding="utf-8-sig") as f:
-        return json.load(f).get("abbreviations", [])
+        data = json.load(f).get("abbreviations", {})
+    result = []
+    for full, abbrevs in data.items():
+        for abbrev in abbrevs:
+            result.append((abbrev, full))
+    return result
 
 
 def _expand_abbreviation(text, abbrev_list):

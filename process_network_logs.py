@@ -85,6 +85,8 @@ def load_limits(config_path: str = "run_config.json") -> dict:
         "max_line_length": _DEFAULT_MAX_LINE_LENGTH,
         "max_output_lines": _DEFAULT_MAX_OUTPUT_LINES,
         "screenshot_width": 1000,
+        "font_size": 6,
+        "line_height": 1.3,
     }
     if not os.path.exists(config_path):
         return defaults
@@ -99,12 +101,27 @@ def load_limits(config_path: str = "run_config.json") -> dict:
     resolved = {}
     for key, default in defaults.items():
         value = cfg.get(key, default)
-        if isinstance(value, int) and value > 0:
-            resolved[key] = value
+        if key == "font_size":
+            if isinstance(value, int) and value > 0:
+                resolved[key] = value
+            else:
+                print(f"WARNING: Invalid value for '{key}' in {config_path} "
+                      f"(got {value!r}, expected positive integer); using default {default}.")
+                resolved[key] = default
+        elif key == "line_height":
+            if isinstance(value, (int, float)) and value > 0:
+                resolved[key] = value
+            else:
+                print(f"WARNING: Invalid value for '{key}' in {config_path} "
+                      f"(got {value!r}, expected positive number); using default {default}.")
+                resolved[key] = default
         else:
-            print(f"WARNING: Invalid value for '{key}' in {config_path} "
-                  f"(got {value!r}, expected positive integer); using default {default}.")
-            resolved[key] = default
+            if isinstance(value, int) and value > 0:
+                resolved[key] = value
+            else:
+                print(f"WARNING: Invalid value for '{key}' in {config_path} "
+                      f"(got {value!r}, expected positive integer); using default {default}.")
+                resolved[key] = default
     return resolved
 
 
@@ -162,8 +179,8 @@ HTML_TEMPLATE = """
             max-width: {{ screenshot_width }}px;        /* ADD THIS LINE */
             box-sizing: border-box;
             font-family: 'Fira Code', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.3;
+            font-size: {{ font_size }}px;
+            line-height: {{ line_height }};
             color: #ffffff;
             overflow-wrap: break-word;
             word-wrap: break-word;
@@ -546,7 +563,7 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
             removed_dir = os.path.normpath(os.path.join(output_dir, '..', 'removeddevicetest'))
 
             for idx, group in enumerate(grouped_segments):
-                html_content = template.render(blocks=group, screenshot_width=screenshot_width)
+                html_content = template.render(blocks=group, screenshot_width=screenshot_width, font_size=limits['font_size'], line_height=limits['line_height'])
                 await page.set_content(html_content)
                 element = await page.wait_for_selector('#capture-area')
 

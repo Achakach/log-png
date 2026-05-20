@@ -27,7 +27,9 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "run_config.json")
 _DEFAULT_CONFIG = {
     "logs_dir": "logs",
     "output_dir": "screenshots",
-    "whitelist": []
+    "whitelist": [],
+    "font_size": 6,
+    "line_height": 1.3
 }
 
 

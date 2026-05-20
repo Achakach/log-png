@@ -24,6 +24,8 @@ def test_load_limits_defaults(monkeypatch):
         "max_line_length": 130,
         "max_output_lines": 70,
         "screenshot_width": 1000,
+        "font_size": 6,
+        "line_height": 1.3,
     }
 
 
@@ -33,6 +35,8 @@ def test_load_limits_custom(tmp_path):
         "max_line_length": 150,
         "max_output_lines": 80,
         "screenshot_width": 1200,
+        "font_size": 8,
+        "line_height": 1.5,
     }
     config_file = tmp_path / "custom_config.json"
     config_file.write_text(json.dumps(config), encoding="utf-8")
@@ -42,6 +46,8 @@ def test_load_limits_custom(tmp_path):
         "max_line_length": 150,
         "max_output_lines": 80,
         "screenshot_width": 1200,
+        "font_size": 8,
+        "line_height": 1.5,
     }
 
 
@@ -60,6 +66,8 @@ def test_load_limits_invalid(tmp_path):
         "max_line_length": 130,
         "max_output_lines": 70,
         "screenshot_width": 1000,
+        "font_size": 6,
+        "line_height": 1.3,
     }
 
 
@@ -74,4 +82,6 @@ def test_load_limits_partial(tmp_path):
         "max_line_length": 200,
         "max_output_lines": 70,
         "screenshot_width": 1000,
+        "font_size": 6,
+        "line_height": 1.3,
     }

@@ -203,6 +203,17 @@ def main():
 
         current_row = start_row
 
+        # Write keyword header row (one row above start_row)
+        header_row = start_row - 1
+        if header_row >= 1:
+            header_col = start_col
+            for keyword in keywords:
+                cell = ws[f"{header_col}{header_row}"]
+                cell.value = keyword
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                header_col = _next_column(header_col, 1 + image_col_gap)
+
         for device, device_pngs in device_groups.items():
             # Write device name in column A
             cell = ws[f"A{current_row}"]

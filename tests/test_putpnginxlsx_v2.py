@@ -143,6 +143,15 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
     putpnginxlsx_v2.main()
 
     ws = wb["NetworkReport"]
+    # Header row assertions
+    assert ws["B1"].value == "display device"
+    assert ws["B1"].font.bold
+    assert ws["B1"].alignment.horizontal == "center"
+    assert ws["B1"].alignment.vertical == "center"
+    assert ws["F1"].value == "display clock"
+    assert ws["F1"].font.bold
+    assert ws["F1"].alignment.horizontal == "center"
+    assert ws["F1"].alignment.vertical == "center"
     assert ws["A2"].value == "HW-C01"
     assert ws["A2"].font.bold
     assert ws["A2"].alignment.vertical == "center"
@@ -200,6 +209,11 @@ def test_column_width_offset(monkeypatch, tmp_path):
     putpnginxlsx_v2.main()
 
     ws = wb["NetworkReport"]
+    # Header row assertion
+    assert ws["B1"].value == "display device"
+    assert ws["B1"].font.bold
+    assert ws["B1"].alignment.horizontal == "center"
+    assert ws["B1"].alignment.vertical == "center"
     assert ws.column_dimensions["B"].width == 800 / 7 + 5
     assert len(ws._images) == 1
 
@@ -247,6 +261,11 @@ def test_row_height_offset(monkeypatch, tmp_path):
     putpnginxlsx_v2.main()
 
     ws = wb["NetworkReport"]
+    # Header row assertion
+    assert ws["B1"].value == "display device"
+    assert ws["B1"].font.bold
+    assert ws["B1"].alignment.horizontal == "center"
+    assert ws["B1"].alignment.vertical == "center"
     assert ws.row_dimensions[2].height == 600 * 0.75 + 10 * 5
     assert len(ws._images) == 1
 
@@ -294,6 +313,11 @@ def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
     putpnginxlsx_v2.main()
 
     ws = wb["NetworkReport"]
+    # Header row assertion
+    assert ws["B1"].value == "display device"
+    assert ws["B1"].font.bold
+    assert ws["B1"].alignment.horizontal == "center"
+    assert ws["B1"].alignment.vertical == "center"
     assert ws["A2"].value == "HW-C01"
     assert ws["A2"].font.bold
     assert ws["A2"].alignment.horizontal == "center"

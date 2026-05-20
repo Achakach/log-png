@@ -41,27 +41,6 @@ def test_group_pngs_by_device():
     assert "scr/HW-C02 dis cur.png" not in groups.get("HW-C02", [])
 
 
-# --- _columns_for_image tests ---
-
-def test_columns_for_image(monkeypatch):
-    class MockImage:
-        def __init__(self, path):
-            self.width = 800
-            self.height = 600
-
-    monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImage)
-    result = putpnginxlsx_v2._columns_for_image("fake.png")
-    assert result == (13, 800, 600)
-
-    class MockImageSmall:
-        def __init__(self, path):
-            self.width = 100
-            self.height = 50
-
-    monkeypatch.setattr(putpnginxlsx_v2, "OpenpyxlImage", MockImageSmall)
-    result = putpnginxlsx_v2._columns_for_image("fake.png")
-    assert result == (3, 100, 50)
-
 
 # --- _next_column tests ---
 
@@ -170,10 +149,10 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
     assert ws["A5"].font.bold
     assert ws["A5"].alignment.vertical == "center"
     assert ws["A5"].alignment.horizontal == "center"
-    assert ws.row_dimensions[2].height == 468
-    assert ws.row_dimensions[5].height == 468
+    assert ws.row_dimensions[2].height == 450
+    assert ws.row_dimensions[5].height == 450
     assert len(ws._images) == 3
-    assert ws.column_dimensions["B"].width == 832 / 7
+    assert ws.column_dimensions["B"].width == 800 / 7
 
 
 def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
@@ -221,6 +200,6 @@ def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
     assert ws["A2"].font.bold
     assert ws["A2"].alignment.horizontal == "center"
     assert ws["A2"].alignment.vertical == "center"
-    assert ws.row_dimensions[2].height == 468
+    assert ws.row_dimensions[2].height == 450
     assert len(ws._images) == 1
-    assert ws.column_dimensions["B"].width == 832 / 7
+    assert ws.column_dimensions["B"].width == 800 / 7

@@ -10,7 +10,7 @@ If the config file is missing, a template will be auto-generated.
 
 import glob
 import json
-import math
+
 import os
 import sys
 import re
@@ -128,11 +128,10 @@ def _group_pngs_by_device(png_paths, keywords):
     return dict(sorted(groups.items()))
 
 
-def _columns_for_image(img_path):
-    """Return the number of columns an image should span based on its native width."""
+def _native_dimensions(img_path):
+    """Return the native (width, height) of a PNG in pixels."""
     img = OpenpyxlImage(img_path)
-    col_span = max(3, math.ceil(img.width / 64))
-    return col_span, img.width, img.height
+    return img.width, img.height
 
 
 def _next_column(col_letter, offset):
@@ -219,19 +218,16 @@ def main():
 
                 if matched_png:
                     try:
-                        col_span, native_w, native_h = _columns_for_image(
-                            matched_png
-                        )
+                        native_w, native_h = _native_dimensions(matched_png)
                     except Exception as e:
                         print(
                             f"WARNING: Could not read image dimensions for "
                             f"{os.path.basename(matched_png)}: {e}"
                         )
-                        col_span = 3
                         native_w = 192
                         native_h = 144
 
-                    target_w_pixels = col_span * 64
+                    target_w_pixels = native_w
                     scale = target_w_pixels / native_w if native_w else 1
                     target_h_pixels = int(native_h * scale) if native_w else native_h
                     max_target_h_pixels = max(max_target_h_pixels, target_h_pixels)
@@ -249,12 +245,10 @@ def main():
                         f"({img.width}x{img.height}px)"
                     )
 
-                    current_col = _next_column(
-                        current_col, col_span + image_col_gap
-                    )
+                    current_col = _next_column(current_col, 1 + image_col_gap)
                 else:
                     # No image for this keyword; advance by a default span
-                    current_col = _next_column(current_col, 3 + image_col_gap)
+                    current_col = _next_column(current_col, 1 + image_col_gap)
 
             if max_target_h_pixels > 0:
                 ws.row_dimensions[current_row].height = max_target_h_pixels * 0.75

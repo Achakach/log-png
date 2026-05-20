@@ -173,6 +173,7 @@ def test_main_gallery_layout(monkeypatch, tmp_path):
     assert ws.row_dimensions[2].height == 468
     assert ws.row_dimensions[5].height == 468
     assert len(ws._images) == 3
+    assert ws.column_dimensions["B"].width == 832 / 7
 
 
 def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
@@ -222,3 +223,4 @@ def test_device_label_row_height_and_centered(monkeypatch, tmp_path):
     assert ws["A2"].alignment.vertical == "center"
     assert ws.row_dimensions[2].height == 468
     assert len(ws._images) == 1
+    assert ws.column_dimensions["B"].width == 832 / 7

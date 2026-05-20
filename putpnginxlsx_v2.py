@@ -242,6 +242,7 @@ def main():
 
                     cell_ref = f"{current_col}{current_row}"
                     ws.add_image(img, cell_ref)
+                    ws.column_dimensions[current_col].width = max(12, target_w_pixels / 7)
                     print(
                         f"[{sheet_name}] {device} / "
                         f"{os.path.basename(matched_png)} at {cell_ref} "

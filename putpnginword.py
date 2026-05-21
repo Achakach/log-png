@@ -621,6 +621,10 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
             best_match = png_path
             current_best_score = score
 
+    # Strict error preference: if cell expects error but no error PNG was matched, return None
+    if prefer_error and best_match and '[error]' not in os.path.basename(best_match).lower():
+        return None
+
     return best_match
 
 

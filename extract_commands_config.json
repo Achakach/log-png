@@ -1,0 +1,6 @@
+{
+  "logs_dir": "logs",
+  "output_dir": "extracted_commands",
+  "expand_abbreviations": true,
+  "combine_output": true
+}

@@ -501,12 +501,16 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
         return None
 
     # Regex to detect placeholder tokens like xxx.zip, xxx.cfg, etc.
-    _PLACEHOLDER_RE = re.compile(r'^xxx\.[a-z]+$')
+    _PLACEHOLDER_RE = re.compile(r'^xxx\.[a-z]+$|^xxx\.\*$')
 
     # Build search tokens from device + commands
     search_tokens = sanitize_filename(device).lower().split()
     for cmd in commands:
-        search_tokens.extend(sanitize_filename(cmd).lower().split())
+        sanitized = sanitize_filename(cmd).lower()
+        # Preserve wildcard placeholder through filename sanitization
+        if cmd.strip().lower() == 'xxx.*':
+            sanitized = 'xxx.*'
+        search_tokens.extend(sanitized.split())
 
     # Extract and remove "username VALUE" tag from search tokens (cell side)
     # The tag can appear anywhere in the command sequence, not just at the end.
@@ -584,6 +588,13 @@ def find_best_match(device: str, commands: list[str], png_files: list[str], pref
         for pt, ct in zip(png_cmd_tokens, cmd_tokens):
             placeholder_match = _PLACEHOLDER_RE.match(ct)
             if placeholder_match:
+                if ct == 'xxx.*':
+                    # Wildcard: accept any extension (or any token containing a dot)
+                    if '.' not in pt:
+                        all_match = False
+                        break
+                    # Any extension is fine, no need to compare
+                    continue
                 # DOCX has xxx.* placeholder — compare the file extension only
                 # e.g., xxx.zip in DOCX should match xxx.zip in PNG, but NOT xxx.cfg
                 docx_ext = ct.split('.')[-1]

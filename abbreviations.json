@@ -41,10 +41,6 @@
       "dis dev",
       "dis d"
     ],
-    "display cpu-usage": [
-      "dis cpu",
-      "dis cpu-u"
-    ],
     "display memory-usage": [
       "dis mem",
       "dis mem-u"
@@ -295,7 +291,6 @@
       "tag"
     ],
     "untagged": [
-      "un",
       "unt"
     ],
     "port link-type access": [
@@ -372,7 +367,6 @@
       "bg"
     ],
     "peer": [
-      "pe",
       "per"
     ],
     "as-number": [
@@ -408,12 +402,10 @@
       "so"
     ],
     "destination": [
-      "des",
       "dst"
     ],
     "source-port": [
-      "s-p",
-      "sp"
+      "s-p"
     ],
     "destination-port": [
       "d-p",
@@ -468,8 +460,7 @@
       "pi"
     ],
     "tracert": [
-      "tra",
-      "tr"
+      "tra"
     ],
     "debugging": [
       "deb"
@@ -554,7 +545,6 @@
       "cip"
     ],
     "simple": [
-      "si",
       "sim"
     ],
     "privilege level": [
@@ -568,6 +558,176 @@
     "idle-timeout": [
       "idl t",
       "i t"
+    ],
+    "display ptp all": [
+      "dis ptp al",
+      "dis ptp a"
+    ],
+    "display ptp interface": [
+      "dis ptp int",
+      "dis ptp i"
+    ],
+    "display ptp utc": [
+      "dis ptp utc"
+    ],
+    "display smart-clock": [
+      "dis sm c",
+      "dis smc"
+    ],
+    "display smart-clock all": [
+      "dis sm c al",
+      "dis smc al"
+    ],
+    "display ospf interface": [
+      "dis ospf int",
+      "dis ospf i"
+    ],
+    "display ospf routing": [
+      "dis ospf rou",
+      "dis ospf r"
+    ],
+    "display ospf abr-asbr": [
+      "dis ospf abr",
+      "dis ospf a"
+    ],
+    "display ospf topology": [
+      "dis ospf top"
+    ],
+    "display bgp routing-table": [
+      "dis bgp rou",
+      "dis bgp r"
+    ],
+    "display bgp peer-group": [
+      "dis bgp pe g",
+      "dis bgp pg"
+    ],
+    "display isis interface": [
+      "dis isis int",
+      "dis isis i"
+    ],
+    "display isis routing": [
+      "dis isis rou",
+      "dis isis r"
+    ],
+    "display isis topology": [
+      "dis isis top"
+    ],
+    "display mpls label": [
+      "dis mpls lab"
+    ],
+    "display mpls tunnel": [
+      "dis mpls tun"
+    ],
+    "display counters": [
+      "dis cou",
+      "dis co"
+    ],
+    "display counters rate": [
+      "dis cou ra",
+      "dis co r"
+    ],
+    "display cpu-usage history": [
+      "dis cpu his"
+    ],
+    "display memory-usage pool": [
+      "dis mem po"
+    ],
+    "display diagnostic-information": [
+      "dis diag"
+    ],
+    "display vlan": [
+      "dis vl"
+    ],
+    "display vlan brief": [
+      "dis vl b",
+      "dis vl br"
+    ],
+    "display ipv6 routing-table": [
+      "dis ipv6 rou"
+    ],
+    "display arp static": [
+      "dis arp s",
+      "dis ar st"
+    ],
+    "display ntp sessions": [
+      "dis ntp se"
+    ],
+    "display ip routing-table protocol": [
+      "dis ip rou pro"
+    ],
+    "display route-policy": [
+      "dis rou-po",
+      "dis ro po"
+    ],
+    "display ip extcommunity-list": [
+      "dis ip ext"
+    ],
+    "interface GigabitEthernet": [
+      "int g",
+      "int ge",
+      "int gig"
+    ],
+    "interface TenGigabitEthernet": [
+      "int xge",
+      "int te",
+      "int tg"
+    ],
+    "interface 100GE": [
+      "int 100ge",
+      "int hge"
+    ],
+    "interface Ethernet": [
+      "int e",
+      "int eth"
+    ],
+    "interface Vlanif": [
+      "int v",
+      "int vl",
+      "int vlanif"
+    ],
+    "interface Loopback": [
+      "int lo",
+      "int loop",
+      "int lb"
+    ],
+    "interface Tunnel": [
+      "int tun",
+      "int tu",
+      "int tunn"
+    ],
+    "interface Eth-Trunk": [
+      "int et",
+      "int eth-trunk",
+      "int trunk"
+    ],
+    "interface MEth": [
+      "int meth",
+      "int me"
+    ],
+    "interface NULL": [
+      "int null",
+      "int nu"
+    ],
+    "interface Bridge-domain": [
+      "int bd",
+      "int br",
+      "int bridge"
+    ],
+    "set cpu threshold": [
+      "set cpu th",
+      "s c t"
+    ],
+    "startup saved-configuration": [
+      "star sav-c",
+      "st sa"
+    ],
+    "undo silent-interface": [
+      "un si",
+      "u sil"
+    ],
+    "username": [
+      "usern",
+      "user"
     ]
   }
 }

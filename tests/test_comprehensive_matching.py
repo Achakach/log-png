@@ -79,8 +79,8 @@ class TestFindBestMatch:
 
     def test_abbreviation_dis(self):
         """A6b. 'dis' expands to 'display'."""
-        pngs = ['HW-Core-BKK-01 display cpu.png']
-        result = find_best_match('HW-Core-BKK-01', ['dis', 'cpu'], pngs)
+        pngs = ['HW-Core-BKK-01 display clock.png']
+        result = find_best_match('HW-Core-BKK-01', ['dis', 'clock'], pngs)
         assert result is not None
 
     def test_abbreviation_dis_th(self):
@@ -561,6 +561,22 @@ class TestEdgeCases:
             'HW-Core-BKK-01', ['startup', 'saved-configuration', 'xxx.zip'], pngs
         )
         assert result is None
+
+    def test_placeholder_xxx_wildcard(self):
+        """F8b. xxx.* placeholder matches any file extension."""
+        pngs = ['HW-Core-BKK-01 startup saved-configuration backup.zip.png']
+        result = find_best_match(
+            'HW-Core-BKK-01', ['startup', 'saved-configuration', 'xxx.*'], pngs
+        )
+        assert result is not None
+
+    def test_placeholder_xxx_wildcard_cfg(self):
+        """F8c. xxx.* matches .cfg extension too."""
+        pngs = ['HW-Core-BKK-01 startup saved-configuration backup.cfg.png']
+        result = find_best_match(
+            'HW-Core-BKK-01', ['startup', 'saved-configuration', 'xxx.*'], pngs
+        )
+        assert result is not None
 
     def test_merged_block_individual_command_match(self):
         """F9. Merged blocks try each command individually until match."""

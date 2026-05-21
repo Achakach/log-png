@@ -127,8 +127,29 @@ def list_sections(doc):
 
 # --- Abbreviation Expansion ---
 
-# Longest-first to avoid partial expansion (e.g. 'dis th' before 'dis')
-_ABBREVIATIONS = [
+def _load_abbreviations():
+    """Load abbreviation list from JSON file.
+
+    JSON format: {"abbreviations": {"full_command": ["abbr1", "abbr2"]}}
+    Returns flat list of (abbrev, full) tuples sorted longest-first.
+    """
+    abb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "abbreviations.json")
+    if not os.path.exists(abb_path):
+        return []
+    try:
+        with open(abb_path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f).get("abbreviations", {})
+    except (json.JSONDecodeError, IOError):
+        return []
+    result = []
+    for full, abbrevs in data.items():
+        for abbrev in abbrevs:
+            result.append((abbrev, full))
+    return sorted(result, key=lambda x: len(x[0]), reverse=True)
+
+
+# Fallback abbreviations if JSON file is missing
+_FALLBACK_ABBREVIATIONS = [
     ('dis th', 'display this'),
     ('dis cur', 'display current-configuration'),
     ('dis cu', 'display current-configuration'),
@@ -138,6 +159,8 @@ _ABBREVIATIONS = [
     ('comm', 'commit'),
     ('q', 'quit'),
 ]
+
+_ABBREVIATIONS = _load_abbreviations() or _FALLBACK_ABBREVIATIONS
 
 
 def expand_abbreviations(commands: list[str]) -> list[str]:

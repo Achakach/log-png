@@ -29,8 +29,19 @@ playwright install chromium
 | `python-docx` | Word document manipulation |
 | `pywin32` *(Windows only)* | Required by `word_com_embed.py` for OLE embedding |
 | `filename_utils.py` | Shared `sanitize_filename()` utility for consistent filename handling |
+| `re` | ใช้ใน `extract_commands.py` สำหรับ regex matching |
+| `abbreviations.json` | ไฟล์ข้อมูล abbreviation 198 entries — จำเป็นต้องมีในที่เดียวกับ script |
 
 ## Version
+
+**1.3.0** — 2026-05-21
+
+- Abbreviation expansion migrated from hardcoded to JSON: `abbreviations.json` with 198 entries, loaded dynamically by `run.py`, `putpnginword.py`, `putpnginxlsx_v2.py`, and `extract_commands.py`
+- Added `extract_commands.py`: extract commands from logs, compare against `abbreviations.json`, report missing commands
+- Added `font_size` and `line_height` to `run_config.json` for screenshot rendering density control
+- Added `xxx.*` wildcard support in `putpnginword.py` for flexible file extension matching
+- Added strict error preference in `putpnginword.py`: `prefer_error=True` returns `None` if no `[error]` PNG exists
+- Fixed 7 ambiguous abbreviation collisions in `abbreviations.json`
 
 **1.2.0** — 2026-05-11
 
@@ -134,6 +145,23 @@ python run.py
 ### 3. ผลลัพธ์
 PNG อยู่ในโฟลเดอร์ `screenshots/`
 
+### Config (`run_config.json`)
+
+ไฟล์ `run_config.json` จะถูกสร้างอัตโนมัติหากยังไม่มี:
+```json
+{
+  "logs_dir": "logs",
+  "output_dir": "screenshots",
+  "whitelist": [],
+  "font_size": 6,
+  "line_height": 1.3
+}
+```
+
+- `whitelist` — ระบุคำสั่งที่ต้องการประมวลผลเท่านั้น (`[]` = ทั้งหมด)
+- `font_size` — ขนาดตัวอักษรใน screenshot (px)
+- `line_height` — ความสูงบรรทัดใน screenshot
+
 ## รูปแบบ Log File ที่รองรับ
 
 รองรับเฉพาะ Huawei VRP prompt format:
@@ -209,6 +237,21 @@ Script ใช้ depth เพื่อจัดกลุ่มคำสั่ง
 
 สร้างไฟล์ `.txt` หรือ `.log` ด้วย Huawei VRP prompt format (`<Router>` / `[Router]`)
 
+## เพิ่ม PNG ลง Excel / Word
+
+มี 3 เวอร์ชันของ Excel inserter ที่มี layout ต่างกัน:
+
+### `putpnginxlsx.py` (v1 — Vertical Stack)
+วาง PNG ซ้อนกันเป็นคอลัมน์เดียว
+
+### `putpnginxlsx_v2.py` (v2 — Horizontal Gallery)
+วาง PNG เรียงแนวนอน: 1 row ต่อ device, มี device name ในคอลัมน์แรก
+
+### `putpnginxlsx_v3.py` (v3 — Vertical Gallery)
+วาง PNG เรียงแนวตั้ง: 1 column ต่อ device, device name อยู่ใน row 1 (bold)
+
+ทั้ง 3 เวอร์ชันอ่าน config จากไฟล์ `<script>_config.json` ที่อยู่ใน directory เดียวกัน
+
 ## แทรก PNG ลง Word (`putpnginword.py`)
 
 แทรก PNG screenshot ลงในเอกสาร Word .docx โดยจับคู่คำสั่งในตารางกับชื่อไฟล์ PNG
@@ -216,6 +259,16 @@ Script ใช้ depth เพื่อจัดกลุ่มคำสั่ง
 ### วิธีใช้
 ```bash
 python putpnginword.py
+```
+
+ตั้งค่าผ่าน `putpnginword_config.json`:
+```json
+{
+  "docx_input": "input.docx",
+  "png_path": "screenshots/*.png",
+  "docx_output": "output.docx",
+  "target_sections": []
+}
 ```
 
 ตั้งค่า path ที่ด้านบนของ script:
@@ -230,7 +283,7 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
 1. **อ่านตาราง** ใน Word document → แต่ละ cell หา prompt+command lines และ node names
    - ข้าม prompt เปล่าที่ไม่มีคำสั่ง (เช่น `[HUAWEI]`)
    - ข้าม model label เช่น `CEx01`, `CEx02` (ไม่มีผลต่อการ match)
-2. **ขยายคำย่อ** ก่อนจับคู่ (`system`→`system-view`, `dis`→`display`, `dis th`→`display this`, `q`→`quit`)
+2. **ขยายคำย่อ** จาก `abbreviations.json` (198 entries) ก่อนจับคู่ — รองรับ abbreviation ทั้งหมดที่อยู่ใน JSON (`dis th`→`display this`, `system`→`system-view`, `dis ospf rou`→`display ospf routing`, ฯลฯ)
 3. **จับคู่** ชื่อไฟล์ PNG ด้วย contiguous subsequence matching (case-insensitive)
    - คำสั่งทั้งหมดใน cell ต้องปรากฏติดกันเป็นชุดในชื่อไฟล์ PNG
    - รองรับ cell ที่ไม่มี `quit` (match แค่ส่วนที่ cell มี)
@@ -239,6 +292,8 @@ DOCX_OUTPUT = "output.docx"                  # ไฟล์ผลลัพธ์
    - **Option B (block-scoped):** แต่ละ command block "เป็นเจ้าของ" nodes ที่อยู่หลังจากนั้น หาก node เดียวกันปรากฏหลังหลาย block จะได้รับหลายรูป (หนึ่งรูปต่อ block)
    - **Empty Block Merge:** หาก standalone block ใด block หนึ่งไม่มี node (เช่น `CEx01` อยู่บรรทัดเดียวกับคำสั่งแต่ไม่มี node ตามหลัง) block ว่างจะถูก merge เข้ากับ block ถัดไปที่มี node ทำให้ทุก node สามารถลอง match กับทุกคำสั่งใน pool
    - **Error Preference:** หากพบ PNG ที่มี `[error]` จะถูก skip และลองคำสั่งถัดไปจนกว่าจะเจอ PNG ที่ไม่มี error
+   - **Wildcard Matching:** รองรับ `xxx.*` และ `xxx.zip`/`xxx.cfg` เป็น placeholder — DOCX มี `xxx.*` จะ match PNG ใดก็ได้ที่มี extension ใดก็ได้ (เช่น `startup saved-configuration backup.zip`)
+   - **Strict Error Preference:** หาก `prefer_error=True` และไม่พบ PNG ที่มี `[error]` จะคืน `None` (ไม่มี fallback ไปหา clean PNG)
    - Deduplication เป็นระดับ paragraph (ไม่ใช่ระดับ cell) เพื่อป้องกันการแทรกซ้ำที่ paragraph เดียวกัน
 
 ### รูปแบบ Cell ที่รองรับ
@@ -289,3 +344,52 @@ tries: cpu-usage → [error].png ❌ → SKIP
 - Prompt (`<HUAWEI>`, `[~HUAWEI]`, `[~HUAWEI-GE0/0/29]`) ไม่มีผลต่อการ match — ดึงเฉพาะส่วน command
 - บรรทัดที่ไม่ใช่ prompt+command และไม่ใช่ `<NodeName>` (เช่น `CEx01`) จะถูกข้ามโดยอัตโนมัติ
 - Empty block merge ใช้ได้เฉพาะกับ **standalone commands** (ไม่มี `system-view` หรือ sub-view)
+
+## Extract Commands from Logs (`extract_commands.py`)
+
+Extracts all commands from Huawei VRP log files and writes them as one command per line to `.txt` files. Automatically compares extracted commands against `abbreviations.json` and reports which commands are missing from the abbreviation list.
+
+### Usage
+```bash
+# Process all .txt/.log in logs/ directory (combined output)
+python extract_commands.py
+
+# Process specific file
+python extract_commands.py path/to/log.txt
+```
+
+### Output (Directory Mode)
+- `all_commands.txt` — every unique command from all logs (deduplicated, sorted)
+- `all_missing.txt` — commands not found in `abbreviations.json`
+
+### Config
+Reads from `extract_commands_config.json`:
+```json
+{
+  "logs_dir": "logs",
+  "output_dir": "extracted_commands",
+  "expand_abbreviations": true,
+  "combine_output": true
+}
+```
+
+### Features
+- Reuses `_split_into_segments()` from `process_network_logs.py` — zero parsing logic duplication
+- Abbreviations expanded by default (`dis th` → `display this`)
+- Automatic comparison: loads `abbreviations.json`, reports missing commands
+- Sanitizes non-command tokens before comparison: `username`, `local-user`, file extensions, interface identifiers, IP addresses, placeholder tokens (`xxx.zip`, `xxx.*`), trailing `all`, trailing numbers
+- PyInstaller-compatible (`get_base_dir()` for `.exe` mode)
+
+### Single-File Mode
+When processing a single file, outputs per-file `.txt`:
+```bash
+python extract_commands.py path/to/log.txt
+```
+→ `{name}_commands.txt` + `{name}_missing.txt`
+
+### Directory Mode (Default)
+When processing a directory, accumulates all commands and writes combined output:
+```bash
+python extract_commands.py
+```
+→ `all_commands.txt` + `all_missing.txt`

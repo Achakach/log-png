@@ -97,11 +97,16 @@ All auto-calculate sizing from PNG native dimensions (v2: width→columns, v3: h
 - Windows Defender may flag PyInstaller binaries unpredictably — rebuilds produce different hashes. If blocked, rebuild until one works.
 - EXEs deployed to `HuaweiScreenshotTool/`
 
+## Recent Changes
+
+- `run_config.json` now supports `font_size` (default: 6px) and `line_height` (default: 1.3) — passed through to Jinja2 template
+- `process_network_logs.py` reads `abbreviations.json` and expands abbreviations in PNG filenames; raw commands remain in screenshot rendering
+
 ## Known Limitations (preserved from CLAUDE.md)
 
 - Only Huawei VRP format supported — Cisco IOS is NOT supported
 - Regex may match output lines resembling prompts starting with `[` or `<` at column 0
-- `putpnginword.py` abbreviation dictionary is hardcoded — new abbreviations must be added manually to `_ABBREVIATIONS`
+- `process_network_logs.py` abbreviation expansion reads `abbreviations.json`; `putpnginword.py` matching dictionary is still hardcoded
 - Baseline tracking is per-session only (not persisted to disk)
 - Empty block merge depends on `[ERROR]` PNGs to filter wrong command+device matches
 

@@ -575,11 +575,6 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Clean up old PNG files
-    for f in os.listdir(output_dir):
-        if f.endswith('.png'):
-            os.remove(os.path.join(output_dir, f))
-
     # Load abbreviation list for filename expansion
     abbrev_list = _load_abbreviations()
 
@@ -856,6 +851,12 @@ if __name__ == "__main__":
 
     if os.path.isdir(args.log_file):
         # Batch mode: process all .txt files in the directory
+        # Clean up old PNG files once before processing all logs
+        os.makedirs(args.output_dir, exist_ok=True)
+        for f in os.listdir(args.output_dir):
+            if f.endswith('.png'):
+                os.remove(os.path.join(args.output_dir, f))
+
         log_files = sorted(
             os.path.join(args.log_file, f)
             for f in os.listdir(args.log_file)
@@ -877,6 +878,12 @@ if __name__ == "__main__":
         print(f"\n✅ Done! {len(total_results)} total screenshots across {len(log_files)} log files")
     else:
         # Single file mode: original behavior
+        # Clean up old PNG files once before processing
+        os.makedirs(args.output_dir, exist_ok=True)
+        for f in os.listdir(args.output_dir):
+            if f.endswith('.png'):
+                os.remove(os.path.join(args.output_dir, f))
+
         with open(args.log_file, "r", encoding="utf-8") as f:
             content = f.read()
 

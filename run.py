@@ -73,6 +73,11 @@ def main():
         print(f"[ERROR] logs directory not found at {logs_dir}")
         sys.exit(1)
 
+    # Clean up old PNG files once before processing all logs
+    for f in os.listdir(output_dir):
+        if f.endswith('.png'):
+            os.remove(os.path.join(output_dir, f))
+
     log_files = sorted(
         os.path.join(logs_dir, f)
         for f in os.listdir(logs_dir)

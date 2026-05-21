@@ -538,6 +538,35 @@ def _extract_device_name(prompt: str) -> str:
     return inner
 
 
+def _load_abbreviations():
+    """Load abbreviation list from JSON file.
+
+    JSON format: {"abbreviations": {"full_command": ["abbr1", "abbr2"]}}
+    Returns flat list of (abbrev, full) tuples sorted longest-first.
+    """
+    abb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "abbreviations.json")
+    if not os.path.exists(abb_path):
+        return []
+    with open(abb_path, "r", encoding="utf-8-sig") as f:
+        data = json.load(f).get("abbreviations", {})
+    result = []
+    for full, abbrevs in data.items():
+        for abbrev in abbrevs:
+            result.append((abbrev, full))
+    return sorted(result, key=lambda x: len(x[0]), reverse=True)
+
+
+def _expand_abbreviation(text, abbrev_list):
+    """Expand abbreviations in text (longest-first)."""
+    expanded = text
+    for abbrev, full in abbrev_list:
+        pattern = re.compile(
+            r"(^|\s)" + re.escape(abbrev) + r"($|\s)", re.IGNORECASE
+        )
+        expanded = pattern.sub(r"\1" + full + r"\2", expanded)
+    return expanded
+
+
 async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: str = ".") -> list[dict]:
     """Uses Jinja2 and Playwright to render HTML and capture element screenshots."""
     env = Environment(autoescape=select_autoescape(default=True))
@@ -545,6 +574,14 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
     results = []
 
     os.makedirs(output_dir, exist_ok=True)
+
+    # Clean up old PNG files
+    for f in os.listdir(output_dir):
+        if f.endswith('.png'):
+            os.remove(os.path.join(output_dir, f))
+
+    # Load abbreviation list for filename expansion
+    abbrev_list = _load_abbreviations()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -581,7 +618,6 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
                 # Use terminal command's device for the filename (not SSH source)
                 device_name = _extract_device_name(terminal_cmd['prompt_raw'])
                 safe_device = sanitize_filename(device_name)
-                safe_first_cmd = sanitize_filename(first_cmd['command'])
 
                 # Baseline tracking for display device
                 removed_suffix = ''
@@ -644,13 +680,13 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
 
                 if len(group) == 1:
                     # Standalone command: "HW-Core-BKK-01 display device.png"
-                    filename_cmd = safe_first_cmd
+                    filename_cmd = sanitize_filename(_expand_abbreviation(first_cmd['command'], abbrev_list))
                 elif is_ssh_merged:
                     # Merged SSH session: use terminal display command for filename
-                    filename_cmd = sanitize_filename(terminal_cmd['command'])
+                    filename_cmd = sanitize_filename(_expand_abbreviation(terminal_cmd['command'], abbrev_list))
                 else:
                     # Nested block: "HW-Core-BKK-01 system-view interface GE0_0_1 display this quit quit.png"
-                    filename_cmd = " ".join(sanitize_filename(seg['command']) for seg in group)
+                    filename_cmd = " ".join(sanitize_filename(_expand_abbreviation(seg['command'], abbrev_list)) for seg in group)
                 
                 filename = f"{safe_device} {filename_cmd}{removed_suffix}{alarm_suffix}{username_suffix}{error_suffix}.png"
                 filepath = os.path.join(output_dir, filename)

@@ -400,18 +400,33 @@ python extract_commands.py
 
 
 
-# Huawei VRP Log Processing Pipeline
+flowchart TD
+    %% --------------------------------------------------------
+    %% การตั้งค่าความสวยงามและชุดสีตาม Theme (Dark Mode)
+    %% --------------------------------------------------------
+    classDef phase1 fill:#1a1a2e,stroke:#e94560,stroke-width:2px,color:#eee;
+    classDef phase2 fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#eee;
+    classDef phase3 fill:#0f3460,stroke:#533483,stroke-width:2px,color:#eee;
+    classDef phase4 fill:#533483,stroke:#e94560,stroke-width:2px,color:#eee;
+    
+    classDef success fill:#22c55e,stroke:#16a34a,stroke-width:2px,color:#000;
+    classDef danger fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff;
 
-```mermaid
-flowchart LR
+    %% --------------------------------------------------------
+    %% 🔍 1. PARSE
+    %% --------------------------------------------------------
     subgraph P1["🔍 1. PARSE"]
-        direction TB
         A["📁 logs/*.txt"] --> B{"Has Router prompt?"}
         B -->|"NO"| X["⛔ Skip file"]
         B -->|"YES"| C["Split into<br/>{prompt, command, output}"]
     end
+    class P1,A,B,C phase1;
+    class X danger;
+
+    %% --------------------------------------------------------
+    %% 📦 2. GROUP
+    %% --------------------------------------------------------
     subgraph P2["📦 2. GROUP"]
-        direction TB
         C --> D{"Command goes deeper?"}
         D -->|"YES (system-view)"| E["📎 Nested Block<br/>all cmds → 1 PNG"]
         D -->|"NO (standalone)"| F["📄 Standalone<br/>1 cmd → 1 PNG"]
@@ -419,8 +434,12 @@ flowchart LR
         G -->|"YES"| H["✂️ Truncate at EOF"]
         G -->|"NO"| I["✅ Full block with quit"]
     end
+    class P2,D,E,F,G,H,I phase2;
+
+    %% --------------------------------------------------------
+    %% 🎨 3. RENDER
+    %% --------------------------------------------------------
     subgraph P3["🎨 3. RENDER"]
-        direction TB
         H --> J["Jinja2 autoescape<br/>template.render() → HTML string"]
         I --> J
         F --> J
@@ -428,31 +447,35 @@ flowchart LR
         K --> L["📸 Screenshot #capture-area"]
         L --> M["🖼️ PNG saved"]
     end
+    class P3,J,K,L,M phase3;
+
+    %% --------------------------------------------------------
+    %% 📄 4. INSERT — DETAILED
+    %% --------------------------------------------------------
     subgraph P4["📄 4. INSERT — DETAILED"]
-        direction TB
         M --> N["📖 Read DOCX<br/>parse into blocks"]
         N --> O["_merge_empty_blocks()<br/>blocks without nodes<br/>→ merge into next"]
         O --> P{"Block type?"}
+        
+        %% แขนงขา NESTED
         P -->|"NESTED"| Q["Concatenate all commands<br/>→ find_best_match()"]
+        Q --> X1{"find_best_match()"}
+        X1 -->|"match"| W["✅ INSERT IMAGE<br/>at NodeName paragraph<br/>dedup per paragraph"]
+        X1 -->|"no match"| Y["⛔ SKIP"]
+        
+        %% แขนงขา POOL
         P -->|"POOL"| R["Try each command<br/>individually"]
-        P -->|"USERNAME"| S["NOISE_COMMANDS skip<br/>_extract_username()<br/>→ tag PNG filename"]
         R --> T{"Match found?"}
         T -->|"YES"| U{"Is [error] PNG?"}
-        U -->|"YES → skip"| V["Try next cmd in pool"]
+        T -->|"NO"| V["Try next cmd in pool"]
+        U -->|"YES → skip"| V
+        U -->|"NO → use it"| W
         V --> T
-        U -->|"NO → use it"| W["✅ INSERT IMAGE<br/>at NodeName paragraph<br/>dedup per paragraph"]
-        T -->|"NO"| V
-        Q --> X1{"find_best_match()"}
-        X1 -->|"match"| W
-        X1 -->|"no match"| Y["⛔ SKIP"]
+        
+        %% แขนงขา USERNAME
+        P -->|"USERNAME"| S["NOISE_COMMANDS skip<br/>_extract_username()<br/>→ tag PNG filename"]
         S --> W
     end
-    style P1 fill:#1a1a2e,stroke:#e94560,color:#eee
-    style P2 fill:#16213e,stroke:#0f3460,color:#eee
-    style P3 fill:#0f3460,stroke:#533483,color:#eee
-    style P4 fill:#533483,stroke:#e94560,color:#eee
-    style W fill:#22c55e,color:#000
-    style Y fill:#ef4444,color:#fff
-    style X fill:#ef4444,color:#fff
-```
-
+    class P4,N,O,P,Q,R,S,T,U,V,X1 phase4;
+    class W success;
+    class Y danger;

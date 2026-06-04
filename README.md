@@ -400,99 +400,59 @@ python extract_commands.py
 
 
 
+# Huawei VRP Log Processing Pipeline
+
 ```mermaid
-flowchart TD
-    %% การตั้งค่าความสวยงามและชุดสีตาม Theme ระบบสว่าง/มืด
-    classDef phase1 fill:#1a1a2e,stroke:#e94560,stroke-width:2px,color:#f1f5f9;
-    classDef phase2 fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#f1f5f9;
-    classDef phase3 fill:#0f3460,stroke:#533483,stroke-width:2px,color:#f1f5f9;
-    classDef phase4 fill:#533483,stroke:#e94560,stroke-width:2px,color:#f1f5f9;
-    
-    classDef textNode fill:#1a1a2e,stroke:#e94560,stroke-width:1px,color:#f1f5f9;
-    classDef textNodeP2 fill:#16213e,stroke:#0f3460,stroke-width:1px,color:#f1f5f9;
-    classDef textNodeP4 fill:#533483,stroke:#e94560,stroke-width:1px,color:#f1f5f9;
-
-    %% PHASE 1 — PARSE
-    subgraph P1["PHASE 1 — PARSE"]
-        p1_node6(["logs/*.txt"])
-        p1_node7{"Has Router<br/>prompt?"}
-        p1_node8(["Skip"])
-        p1_node9["Split into<br/>segments"]
-        p1_node10[/"segments list<br/>[{prompt, cmd, output}]"\/]
+flowchart LR
+    subgraph P1["🔍 1. PARSE"]
+        direction TB
+        A["📁 logs/*.txt"] --> B{"Has Router prompt?"}
+        B -->|"NO"| X["⛔ Skip file"]
+        B -->|"YES"| C["Split into<br/>{prompt, command, output}"]
     end
-    class p1_node6,p1_node7,p1_node9,p1_node10 phase1; class p1_node8 textNode;
-
-    p1_node6 --> p1_node7
-    p1_node7 == YES ==> p1_node9
-    p1_node7 -. NO .-> p1_node8
-    p1_node9 --> p1_node10
-
-    %% PHASE 2 — GROUP
-    subgraph P2["PHASE 2 — GROUP"]
-        p2_node11{"Command goes<br/>deeper?"}
-        p2_node12["Standalone<br/>(1 cmd → 1 PNG)"]
-        p2_node13["Nested block<br/>(all cmds → 1 PNG)"]
-        p2_node14{"EOF before<br/>quit?"}
-        p2_node15["Truncate"]
-        p2_node16["Full block"]
-        p2_node17[/"grouped segments<br/>→ P3"\/]
+    subgraph P2["📦 2. GROUP"]
+        direction TB
+        C --> D{"Command goes deeper?"}
+        D -->|"YES (system-view)"| E["📎 Nested Block<br/>all cmds → 1 PNG"]
+        D -->|"NO (standalone)"| F["📄 Standalone<br/>1 cmd → 1 PNG"]
+        E --> G{"EOF before return<br/>to depth 0?"}
+        G -->|"YES"| H["✂️ Truncate at EOF"]
+        G -->|"NO"| I["✅ Full block with quit"]
     end
-    class p2_node11,p2_node12,p2_node13,p2_node14,p2_node17 phase2; class p2_node15,p2_node16 textNodeP2;
-
-    p1_node10 --> p2_node11
-    p2_node11 == YES ==> p2_node13
-    p2_node11 == NO ==> p2_node12
-    p2_node13 --> p2_node14
-    p2_node14 == YES ==> p2_node15
-    p2_node14 == NO ==> p2_node16
-    p2_node12 --> p2_node17
-    p2_node15 --> p2_node17
-    p2_node16 --> p2_node17
-
-    %% PHASE 3 — RENDER
-    subgraph P3["PHASE 3 — RENDER"]
-        p3_node18["Jinja2<br/>autoescape → HTML"]
-        p3_node19["Playwright<br/>page.set_content()"]
-        p3_node20["Screenshot<br/>#capture-area"]
-        p3_node21[/"PNG saved<br/>→ screenshots/"\/]
+    subgraph P3["🎨 3. RENDER"]
+        direction TB
+        H --> J["Jinja2 autoescape<br/>template.render() → HTML string"]
+        I --> J
+        F --> J
+        J --> K["page.set_content(html)"]
+        K --> L["📸 Screenshot #capture-area"]
+        L --> M["🖼️ PNG saved"]
     end
-    class p3_node18,p3_node19,p3_node20,p3_node21 phase3;
-
-    p2_node17 --> p3_node18
-    p3_node18 --> p3_node19
-    p3_node19 --> p3_node20
-    p3_node20 --> p3_node21
-
-    %% PHASE 4 — INSERT
-    subgraph P4["PHASE 4 — INSERT"]
-        p4_node22["Read DOCX<br/>cells"]
-        p4_node23{"Block<br/>type?"}
-        p4_node24["NESTED<br/>contiguous subseq"]
-        p4_node25["POOL<br/>(cmd pool)"]
-        p4_node26["USERNAME<br/>(noise, skip)"]
-        p4_node27{"Found<br/>match?"}
-        p4_node28{"Found<br/>match?"}
-        p4_node29{"Found<br/>match?"}
-        p4_node30["Insert<br/>→ docx"]
-        p4_node31(["Skip"])
-        p4_node32["Insert<br/>→ docx"]
-        p4_node33(["Skip"])
-        p4_node34["Insert<br/>→ docx"]
-        p4_node35(["Skip"])
+    subgraph P4["📄 4. INSERT — DETAILED"]
+        direction TB
+        M --> N["📖 Read DOCX<br/>parse into blocks"]
+        N --> O["_merge_empty_blocks()<br/>blocks without nodes<br/>→ merge into next"]
+        O --> P{"Block type?"}
+        P -->|"NESTED"| Q["Concatenate all commands<br/>→ find_best_match()"]
+        P -->|"POOL"| R["Try each command<br/>individually"]
+        P -->|"USERNAME"| S["NOISE_COMMANDS skip<br/>_extract_username()<br/>→ tag PNG filename"]
+        R --> T{"Match found?"}
+        T -->|"YES"| U{"Is [error] PNG?"}
+        U -->|"YES → skip"| V["Try next cmd in pool"]
+        V --> T
+        U -->|"NO → use it"| W["✅ INSERT IMAGE<br/>at NodeName paragraph<br/>dedup per paragraph"]
+        T -->|"NO"| V
+        Q --> X1{"find_best_match()"}
+        X1 -->|"match"| W
+        X1 -->|"no match"| Y["⛔ SKIP"]
+        S --> W
     end
-    class p4_node22,p4_node23,p4_node24,p4_node25,p4_node26 phase4; class p4_node27,p4_node28,p4_node29,p4_node30,p4_node31,p4_node32,p4_node33,p4_node34,p4_node35 textNodeP4;
+    style P1 fill:#1a1a2e,stroke:#e94560,color:#eee
+    style P2 fill:#16213e,stroke:#0f3460,color:#eee
+    style P3 fill:#0f3460,stroke:#533483,color:#eee
+    style P4 fill:#533483,stroke:#e94560,color:#eee
+    style W fill:#22c55e,color:#000
+    style Y fill:#ef4444,color:#fff
+    style X fill:#ef4444,color:#fff
+```
 
-    p3_node21 --> p4_node22
-    p4_node22 --> p4_node23
-    p4_node23 == NESTED ==> p4_node24
-    p4_node23 == POOL ==> p4_node25
-    p4_node23 == USERNAME ==> p4_node26
-    p4_node24 --> p4_node27
-    p4_node25 --> p4_node28
-    p4_node26 --> p4_node29
-    p4_node27 == YES ==> p4_node30
-    p4_node27 -. NO .-> p4_node31
-    p4_node28 == YES ==> p4_node32
-    p4_node28 -. NO .-> p4_node33
-    p4_node29 == YES ==> p4_node34
-    p4_node29 -. NO .-> p4_node35

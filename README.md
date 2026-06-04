@@ -401,7 +401,7 @@ python extract_commands.py
 
 
 ```mermaid
-flowchart TD
+flowchart LR
     %% --------------------------------------------------------
     %% การตั้งค่าความสวยงามและชุดสีตาม Theme (Dark Mode)
     %% --------------------------------------------------------
@@ -412,71 +412,86 @@ flowchart TD
     
     classDef success fill:#22c55e,stroke:#16a34a,stroke-width:2px,color:#000;
     classDef danger fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff;
+    classDef warning fill:#1a1a2e,stroke:#f59e0b,stroke-width:2px,color:#f59e0b;
+    classDef warningNode fill:#2d2d44,stroke:#f59e0b,stroke-width:1px,color:#eee;
 
     %% --------------------------------------------------------
-    %% 🔍 1. PARSE
+    %% 1. PARSE
     %% --------------------------------------------------------
-    subgraph P1["🔍 1. PARSE"]
-        A["📁 logs/*.txt"] --> B{"Has Router prompt?"}
-        B -->|"NO"| X["⛔ Skip file"]
+    subgraph P1["1. PARSE"]
+        direction TB
+        A["logs/*.txt"] --> B{"Has Router prompt?"}
+        B -->|"NO"| X["Skip file"]
         B -->|"YES"| C["Split into<br/>{prompt, command, output}"]
     end
     class P1,A,B,C phase1;
     class X danger;
 
     %% --------------------------------------------------------
-    %% 📦 2. GROUP
+    %% 2. GROUP
     %% --------------------------------------------------------
-    subgraph P2["📦 2. GROUP"]
+    subgraph P2["2. GROUP"]
+        direction TB
         C --> D{"Command goes deeper?"}
-        D -->|"YES (system-view)"| E["📎 Nested Block<br/>all cmds → 1 PNG"]
-        D -->|"NO (standalone)"| F["📄 Standalone<br/>1 cmd → 1 PNG"]
-        E --> G{"EOF before return<br/>to depth 0?"}
-        G -->|"YES"| H["✂️ Truncate at EOF"]
-        G -->|"NO"| I["✅ Full block with quit"]
+        D -->|"YES (system-view)"| E["Nested Block<br/>all cmds → 1 PNG"]
+        D -->|"NO (standalone)"| F["Standalone<br/>1 cmd → 1 PNG"]
+        E --> G{"EOF before quit?"}
+        G -->|"YES"| H["Truncate at EOF"]
+        G -->|"NO"| I["Full block"]
     end
     class P2,D,E,F,G,H,I phase2;
 
     %% --------------------------------------------------------
-    %% 🎨 3. RENDER
+    %% 3. RENDER
     %% --------------------------------------------------------
-    subgraph P3["🎨 3. RENDER"]
-        H --> J["Jinja2 autoescape<br/>template.render() → HTML string"]
+    subgraph P3["3. RENDER"]
+        direction TB
+        H --> J["Jinja2 → HTML string"]
         I --> J
         F --> J
         J --> K["page.set_content(html)"]
-        K --> L["📸 Screenshot #capture-area"]
-        L --> M["🖼️ PNG saved"]
+        K --> L["Screenshot"]
+        L --> M["PNG saved"]
     end
     class P3,J,K,L,M phase3;
 
     %% --------------------------------------------------------
-    %% 📄 4. INSERT — DETAILED
+    %% 4. INSERT — EDGE CASES
     %% --------------------------------------------------------
-    subgraph P4["📄 4. INSERT — DETAILED"]
-        M --> N["📖 Read DOCX<br/>parse into blocks"]
+    subgraph P4["4. INSERT — EDGE CASES"]
+        direction TB
+        M --> N["Read DOCX<br/>parse_paragraphs_detailed()"]
         N --> O["_merge_empty_blocks()<br/>blocks without nodes<br/>→ merge into next"]
+        
         O --> P{"Block type?"}
         
-        %% แขนงขา NESTED
-        P -->|"NESTED"| Q["Concatenate all commands<br/>→ find_best_match()"]
-        Q --> X1{"find_best_match()"}
-        X1 -->|"match"| W["✅ INSERT IMAGE<br/>at NodeName paragraph<br/>dedup per paragraph"]
-        X1 -->|"no match"| Y["⛔ SKIP"]
-        
-        %% แขนงขา POOL
-        P -->|"POOL"| R["Try each command<br/>individually"]
-        R --> T{"Match found?"}
+        P -->|"NESTED<br/>(system-view)"| Q["Concatenate all cmds<br/>→ contiguous subsequence"]
+        Q --> QQ{"match?"}
+        QQ -->|"found"| W["Insert"]
+        QQ -->|"not found"| Y["Skip"]
+
+        P -->|"POOL<br/>(standalone)"| R["Try each command"]
+        R --> T{"Found match?"}
         T -->|"YES"| U{"Is [error] PNG?"}
-        T -->|"NO"| V["Try next cmd in pool"]
-        U -->|"YES → skip"| V
-        U -->|"NO → use it"| W
+        U -->|"YES"| V["Try next cmd<br/>(skip error)"]
         V --> T
-        
-        %% แขนงขา USERNAME
-        P -->|"USERNAME"| S["NOISE_COMMANDS skip<br/>_extract_username()<br/>→ tag PNG filename"]
+        U -->|"NO"| W
+        T -->|"NO cmds left"| Y
+
+        P -->|"USERNAME"| S["_extract_username()<br/>append to PNG filename<br/>NOISE_COMMANDS skip"]
         S --> W
+
+        M --> Z["EDGE CASES"]
+        Z --> Z1["[error] PNG<br/>skipped unless<br/>prefer_error=True"]
+        Z1 --> Z2["prefer_error=True<br/>+ no [error] found<br/>→ return None"]
+        Z --> Z3["Long output truncated<br/>→ .txt file<br/>→ Word COM OLE embed"]
+        Z --> Z4["xxx.* wildcard<br/>matches any extension<br/>xxx.zip matches .zip only"]
+        Z --> Z5["Same NodeName<br/>after different blocks<br/>→ multiple images<br/>(Option B)"]
+        Z --> Z6["Dedup per paragraph<br/>not per cell"]
+        Z --> Z7["username &lt;&gt; → []<br/>.cfg/.zip aligned"]
     end
-    class P4,N,O,P,Q,R,S,T,U,V,X1 phase4;
+    class P4,N,O,P,Q,QQ,R,T,U,V,S phase4;
     class W success;
     class Y danger;
+    class Z warning;
+    class Z1,Z2,Z3,Z4,Z5,Z6,Z7 warningNode;

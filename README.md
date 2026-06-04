@@ -403,7 +403,7 @@ python extract_commands.py
 ```mermaid
 flowchart TD
     %% --------------------------------------------------------
-    %% การตั้งค่าความสวยงามและชุดสีตาม Theme (Dark Mode)
+    %% Class Definitions and Color Themes (Dark Mode)
     %% --------------------------------------------------------
     classDef phase1 fill:#1a1a2e,stroke:#e94560,stroke-width:2px,color:#eee;
     classDef phase2 fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#eee;
@@ -428,18 +428,30 @@ flowchart TD
     class X danger;
 
     %% --------------------------------------------------------
-    %% 2. GROUP
+    %% 2. GROUP — EDGE CASES
     %% --------------------------------------------------------
-    subgraph P2["2. GROUP"]
+    subgraph P2["2. GROUP — EDGE CASES"]
         direction TB
         C --> D{"Command goes deeper?"}
         D -->|"YES (system-view)"| E["Nested Block<br/>all cmds → 1 PNG"]
         D -->|"NO (standalone)"| F["Standalone<br/>1 cmd → 1 PNG"]
-        E --> G{"EOF before quit?"}
-        G -->|"YES"| H["Truncate at EOF"]
-        G -->|"NO"| I["Full block"]
+        
+        E --> G{"EOF before<br/>return to depth 0?"}
+        G -->|"YES"| H["Truncate at EOF<br/>keep what was captured"]
+        G -->|"NO"| I["Full block<br/>ends with quit → &lt;Router&gt;"]
+        
+        C --> Z2a["EDGE CASES"]
+        Z2a --> E1["SSH/stelnet/telnet as<br/>first cmd → merge with<br/>next group (cross-device)"]
+        Z2a --> E2["Log must start with<br/>&lt;Router&gt; (depth 0).<br/>[Router] at depth 1<br/>not supported"]
+        Z2a --> E3["~ prefix = unsaved config<br/>* prefix = alarm/fault<br/>both stripped"]
+        Z2a --> E4["Depth-0 segments after<br/>nested blocks fall through<br/>as standalone (never appended)"]
+        Z2a --> E5["Nested filename = ALL cmds<br/>concatenated incl. quit<br/>max ~300 char (Windows limit)"]
+        Z2a --> E6["display device: 1st occurrence<br/>= baseline. Subsequent =<br/>compare → [Card removed]"]
+        Z2a --> E7["display alarm active: same<br/>baseline → compare →<br/>[alarm_id card_name removed]"]
     end
     class P2,D,E,F,G,H,I phase2;
+    class Z2a warning;
+    class E1,E2,E3,E4,E5,E6,E7 warningNode;
 
     %% --------------------------------------------------------
     %% 3. RENDER
@@ -462,31 +474,34 @@ flowchart TD
         direction TB
         M --> N["Read DOCX<br/>parse_paragraphs_detailed()"]
         N --> O["_merge_empty_blocks()<br/>blocks without nodes<br/>→ merge into next"]
-        
         O --> P{"Block type?"}
         
-        P -->|"NESTED<br/>(system-view)"| Q["Concatenate all cmds<br/>→ contiguous subsequence"]
+        %% NESTED Branch
+        P -->|"NESTED"| Q["Concatenate all cmds<br/>→ contiguous subsequence"]
         Q --> QQ{"match?"}
         QQ -->|"found"| W["Insert"]
         QQ -->|"not found"| Y["Skip"]
-
-        P -->|"POOL<br/>(standalone)"| R["Try each command"]
+        
+        %% POOL Branch
+        P -->|"POOL"| R["Try each command"]
         R --> T{"Found match?"}
         T -->|"YES"| U{"Is [error] PNG?"}
-        U -->|"YES"| V["Try next cmd<br/>(skip error)"]
+        U -->|"YES"| V["Try next cmd (skip error)"]
         V --> T
         U -->|"NO"| W
         T -->|"NO cmds left"| Y
-
-        P -->|"USERNAME"| S["_extract_username()<br/>append to PNG filename<br/>NOISE_COMMANDS skip"]
+        
+        %% USERNAME Branch
+        P -->|"USERNAME"| S["NOISE_COMMANDS skip<br/>_extract_username()<br/>→ tag PNG filename"]
         S --> W
-
+        
+        %% P4 Edge Cases
         M --> Z["EDGE CASES"]
-        Z --> Z1["[error] PNG<br/>skipped unless<br/>prefer_error=True"]
-        Z1 --> Z2["prefer_error=True<br/>+ no [error] found<br/>→ return None"]
+        Z --> Z1["[error] PNG skipped<br/>unless prefer_error=True"]
+        Z1 --> Z1a["prefer_error=True +<br/>no [error] found<br/>→ return None"]
         Z --> Z3["Long output truncated<br/>→ .txt file<br/>→ Word COM OLE embed"]
-        Z --> Z4["xxx.* wildcard<br/>matches any extension<br/>xxx.zip matches .zip only"]
-        Z --> Z5["Same NodeName<br/>after different blocks<br/>→ multiple images<br/>(Option B)"]
+        Z --> Z4["xxx.* wildcard matches<br/>any extension.<br/>xxx.zip matches .zip only"]
+        Z --> Z5["Same NodeName after<br/>different blocks →<br/>multiple images (Option B)"]
         Z --> Z6["Dedup per paragraph<br/>not per cell"]
         Z --> Z7["username &lt;&gt; → []<br/>.cfg/.zip aligned"]
     end
@@ -494,4 +509,4 @@ flowchart TD
     class W success;
     class Y danger;
     class Z warning;
-    class Z1,Z2,Z3,Z4,Z5,Z6,Z7 warningNode;
+    class Z1,Z1a,Z3,Z4,Z5,Z6,Z7 warningNode;

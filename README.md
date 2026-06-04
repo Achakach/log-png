@@ -400,6 +400,7 @@ python extract_commands.py
 
 
 
+```mermaid
 flowchart TD
     %% --------------------------------------------------------
     %% การตั้งค่าความสวยงามและชุดสีตาม Theme (Dark Mode)

@@ -4,11 +4,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from process_network_logs import _truncate_long_lines
+from process_network_logs import _truncate_long_lines, reset_caches
 
 
 def test_long_line_truncated():
     """Lines >130 chars should be truncated to 130 chars."""
+    reset_caches()
     group = [{'output': 'a' * 150 + '\n' + 'b' * 80}]
     _truncate_long_lines(group)
     lines = group[0]['output'].split('\n')
@@ -18,6 +19,7 @@ def test_long_line_truncated():
 
 def test_short_line_unchanged():
     """Lines <=130 chars should remain unchanged."""
+    reset_caches()
     original = 'short line\nanother line'
     group = [{'output': original}]
     _truncate_long_lines(group)
@@ -26,6 +28,7 @@ def test_short_line_unchanged():
 
 def test_exactly_130_unchanged():
     """Lines exactly 130 chars should NOT be truncated."""
+    reset_caches()
     original = 'x' * 130
     group = [{'output': original}]
     _truncate_long_lines(group)
@@ -34,6 +37,7 @@ def test_exactly_130_unchanged():
 
 def test_multi_segment_group():
     """All segments in a group should have their output truncated to 130."""
+    reset_caches()
     group = [
         {'output': 'a' * 200},
         {'output': 'b' * 50},

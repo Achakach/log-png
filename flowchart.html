@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad: true, theme: 'dark', securityLevel: 'loose'});</script>
+    <style>body { background: #0d1117; display: flex; justify-content: center; padding: 40px; margin: 0; }</style>
+</head>
+<body>
+<div class="mermaid">
+flowchart LR
+    subgraph P1["🔍 1. PARSE"]
+        direction TB
+        A["📁 logs/*.txt"] --> B{"Has &lt;Router&gt; prompt?"}
+        B -->|"NO"| X["⛔ Skip file"]
+        B -->|"YES"| C["Split into prompt + command + output"]
+    end
+    subgraph P2["📦 2. GROUP"]
+        direction TB
+        C --> D{"Command goes deeper?"}
+        D -->|"YES (system-view)"| E["📎 Nested Block - All commands → 1 PNG"]
+        D -->|"NO (standalone)"| F["📄 Standalone - 1 command → 1 PNG"]
+        E --> G{"EOF before quit?"}
+        G -->|"YES"| H["✂️ Truncate here"]
+        G -->|"NO"| I["✅ Full block"]
+    end
+    subgraph P3["🎨 3. RENDER"]
+        direction TB
+        H --> J["Jinja2 → HTML"]
+        I --> J
+        F --> J
+        J --> K["Playwright set_content()"]
+        K --> L["📸 Screenshot"]
+        L --> M["🖼️ PNG saved"]
+    end
+    subgraph P4["📄 4. INSERT"]
+        direction TB
+        M --> N["Read DOCX cells"]
+        N --> O{"Block type?"}
+        O -->|"NESTED"| P["Match full sequence"]
+        O -->|"STANDALONE POOL"| Q["Try each - skip [error]"]
+        O -->|"USERNAME"| R["Match with user tag"]
+        P --> S{"Found match?"}
+        Q --> S
+        R --> S
+        S -->|"YES"| T["✅ Insert image"]
+        S -->|"NO"| U["⛔ Skip"]
+    end
+    style P1 fill:#1a1a2e,stroke:#e94560,color:#eee
+    style P2 fill:#16213e,stroke:#0f3460,color:#eee
+    style P3 fill:#0f3460,stroke:#533483,color:#eee
+    style P4 fill:#533483,stroke:#e94560,color:#eee
+    style T fill:#22c55e,color:#000
+    style U fill:#ef4444,color:#fff
+    style X fill:#ef4444,color:#fff
+</div>
+</body>
+</html>

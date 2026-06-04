@@ -14,5 +14,7 @@
   ],
   "start_cell": "B2",
   "image_col_gap": 3,
-  "device_row_gap": 3
+  "device_row_gap": 3,
+  "column_width_offset": 0,
+  "row_height_offset": 0
 }

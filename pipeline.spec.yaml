@@ -1,0 +1,683 @@
+meta:
+  profile: default
+  theme: dark
+  layout: horizontal
+  canvas: 1800x950
+  title: Huawei VRP Log Processing Pipeline
+  description: '4-phase flowchart: logs/*.txt → segments → groups → PNG screenshots → Word/Excel insert'
+modules:
+  - id: phase1
+    label: PHASE 1 — PARSE
+    style:
+      fillColor: '#1a1a2e'
+      strokeColor: '#e94560'
+      strokeWidth: 2
+      labelFontColor: '#e94560'
+      labelFontWeight: 700
+  - id: phase2
+    label: PHASE 2 — GROUP
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+      labelFontColor: '#0f3460'
+      labelFontWeight: 700
+  - id: phase3
+    label: PHASE 3 — RENDER
+    style:
+      fillColor: '#0f3460'
+      strokeColor: '#533483'
+      strokeWidth: 2
+      labelFontColor: '#533483'
+      labelFontWeight: 700
+  - id: phase4
+    label: PHASE 4 — INSERT
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      strokeWidth: 2
+      labelFontColor: '#e94560'
+      labelFontWeight: 700
+nodes:
+  - id: p1-start
+    label: logs/*.txt
+    type: terminal
+    module: phase1
+    size: medium
+    position:
+      x: 226
+      'y': 80
+    style:
+      fillColor: '#1a1a2e'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p1-has-prompt
+    label: |-
+      Has Router
+      prompt?
+    type: decision
+    module: phase1
+    size: medium
+    position:
+      x: 226
+      'y': 200
+    style:
+      fillColor: '#1a1a2e'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p1-skip
+    label: Skip
+    type: terminal
+    module: phase1
+    size: small
+    position:
+      x: 360
+      'y': 200
+    style:
+      fillColor: '#1a1a2e'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p1-split
+    label: |-
+      Split into
+      segments
+    type: process
+    module: phase1
+    size: medium
+    position:
+      x: 226
+      'y': 320
+    style:
+      fillColor: '#1a1a2e'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p1-output
+    label: |-
+      segments list
+      [{prompt, cmd, output}]
+    type: document
+    module: phase1
+    size: large
+    position:
+      x: 226
+      'y': 450
+    style:
+      fillColor: '#1a1a2e'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p2-deeper
+    label: |-
+      Command goes
+      deeper?
+    type: decision
+    module: phase2
+    size: medium
+    position:
+      x: 646
+      'y': 200
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p2-standalone
+    label: |-
+      Standalone
+      (1 cmd → 1 PNG)
+    type: process
+    module: phase2
+    size: medium
+    position:
+      x: 780
+      'y': 200
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p2-nested
+    label: |-
+      Nested block
+      (all cmds → 1 PNG)
+    type: process
+    module: phase2
+    size: medium
+    position:
+      x: 550
+      'y': 320
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p2-eof
+    label: |-
+      EOF before
+      quit?
+    type: decision
+    module: phase2
+    size: medium
+    position:
+      x: 550
+      'y': 450
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p2-truncate
+    label: Truncate
+    type: process
+    module: phase2
+    size: small
+    position:
+      x: 460
+      'y': 560
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p2-full
+    label: Full block
+    type: process
+    module: phase2
+    size: small
+    position:
+      x: 640
+      'y': 560
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p2-output
+    label: |-
+      grouped segments
+      → P3
+    type: document
+    module: phase2
+    size: medium
+    position:
+      x: 646
+      'y': 680
+    style:
+      fillColor: '#16213e'
+      strokeColor: '#0f3460'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p3-jinja
+    label: |-
+      Jinja2
+      autoescape → HTML
+    type: process
+    module: phase3
+    size: medium
+    position:
+      x: 1066
+      'y': 130
+    style:
+      fillColor: '#0f3460'
+      strokeColor: '#533483'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p3-playwright
+    label: |-
+      Playwright
+      page.set_content()
+    type: process
+    module: phase3
+    size: medium
+    position:
+      x: 1066
+      'y': 280
+    style:
+      fillColor: '#0f3460'
+      strokeColor: '#533483'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p3-capture
+    label: |-
+      Screenshot
+      #capture-area
+    type: process
+    module: phase3
+    size: medium
+    position:
+      x: 1066
+      'y': 430
+    style:
+      fillColor: '#0f3460'
+      strokeColor: '#533483'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p3-png
+    label: |-
+      PNG saved
+      → screenshots/
+    type: document
+    module: phase3
+    size: medium
+    position:
+      x: 1066
+      'y': 580
+    style:
+      fillColor: '#0f3460'
+      strokeColor: '#533483'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p4-read
+    label: |-
+      Read DOCX
+      cells
+    type: process
+    module: phase4
+    size: medium
+    position:
+      x: 1486
+      'y': 96
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p4-block-type
+    label: |-
+      Block
+      type?
+    type: decision
+    module: phase4
+    size: medium
+    position:
+      x: 1486
+      'y': 220
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 2
+  - id: p4-nested-match
+    label: |-
+      NESTED
+      contiguous subseq
+    type: process
+    module: phase4
+    size: medium
+    position:
+      x: 1380
+      'y': 340
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-pool-match
+    label: |-
+      POOL
+      (cmd pool)
+    type: process
+    module: phase4
+    size: medium
+    position:
+      x: 1486
+      'y': 340
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-user-match
+    label: |-
+      USERNAME
+      (noise, skip)
+    type: process
+    module: phase4
+    size: medium
+    position:
+      x: 1592
+      'y': 340
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-match-n
+    label: |-
+      Found
+      match?
+    type: decision
+    module: phase4
+    size: medium
+    position:
+      x: 1380
+      'y': 470
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-match-p
+    label: |-
+      Found
+      match?
+    type: decision
+    module: phase4
+    size: medium
+    position:
+      x: 1486
+      'y': 470
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-match-u
+    label: |-
+      Found
+      match?
+    type: decision
+    module: phase4
+    size: medium
+    position:
+      x: 1592
+      'y': 470
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-insert-n
+    label: |-
+      Insert
+      → docx
+    type: process
+    module: phase4
+    size: small
+    position:
+      x: 1330
+      'y': 590
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-skip-n
+    label: Skip
+    type: terminal
+    module: phase4
+    size: small
+    position:
+      x: 1430
+      'y': 590
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-insert-p
+    label: |-
+      Insert
+      → docx
+    type: process
+    module: phase4
+    size: small
+    position:
+      x: 1436
+      'y': 590
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-skip-p
+    label: Skip
+    type: terminal
+    module: phase4
+    size: small
+    position:
+      x: 1536
+      'y': 590
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-insert-u
+    label: |-
+      Insert
+      → docx
+    type: process
+    module: phase4
+    size: small
+    position:
+      x: 1542
+      'y': 590
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+  - id: p4-skip-u
+    label: Skip
+    type: terminal
+    module: phase4
+    size: small
+    position:
+      x: 1642
+      'y': 590
+    style:
+      fillColor: '#533483'
+      strokeColor: '#e94560'
+      fontColor: '#f1f5f9'
+      strokeWidth: 1
+edges:
+  - from: p1-start
+    to: p1-has-prompt
+    type: primary
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p1-has-prompt
+    to: p1-split
+    type: primary
+    label: 'YES'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p1-has-prompt
+    to: p1-skip
+    type: optional
+    label: 'NO'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 1
+      dashed: true
+  - from: p1-split
+    to: p1-output
+    type: primary
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p1-output
+    to: p2-deeper
+    type: primary
+    style:
+      strokeColor: '#f1f5f9'
+      strokeWidth: 2
+  - from: p2-deeper
+    to: p2-nested
+    type: primary
+    label: 'YES'
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-deeper
+    to: p2-standalone
+    type: primary
+    label: 'NO'
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-nested
+    to: p2-eof
+    type: primary
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-eof
+    to: p2-truncate
+    type: primary
+    label: 'YES'
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-eof
+    to: p2-full
+    type: primary
+    label: 'NO'
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-standalone
+    to: p2-output
+    type: primary
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-truncate
+    to: p2-output
+    type: primary
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-full
+    to: p2-output
+    type: primary
+    style:
+      strokeColor: '#0f3460'
+      strokeWidth: 2
+  - from: p2-output
+    to: p3-jinja
+    type: primary
+    style:
+      strokeColor: '#f1f5f9'
+      strokeWidth: 2
+  - from: p3-jinja
+    to: p3-playwright
+    type: primary
+    style:
+      strokeColor: '#533483'
+      strokeWidth: 2
+  - from: p3-playwright
+    to: p3-capture
+    type: primary
+    style:
+      strokeColor: '#533483'
+      strokeWidth: 2
+  - from: p3-capture
+    to: p3-png
+    type: primary
+    style:
+      strokeColor: '#533483'
+      strokeWidth: 2
+  - from: p3-png
+    to: p4-read
+    type: primary
+    style:
+      strokeColor: '#f1f5f9'
+      strokeWidth: 2
+  - from: p4-read
+    to: p4-block-type
+    type: primary
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-block-type
+    to: p4-nested-match
+    type: primary
+    label: NESTED
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-block-type
+    to: p4-pool-match
+    type: primary
+    label: POOL
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-block-type
+    to: p4-user-match
+    type: primary
+    label: USERNAME
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-nested-match
+    to: p4-match-n
+    type: primary
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-pool-match
+    to: p4-match-p
+    type: primary
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-user-match
+    to: p4-match-u
+    type: primary
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-match-n
+    to: p4-insert-n
+    type: primary
+    label: 'YES'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-match-n
+    to: p4-skip-n
+    type: optional
+    label: 'NO'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 1
+      dashed: true
+  - from: p4-match-p
+    to: p4-insert-p
+    type: primary
+    label: 'YES'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-match-p
+    to: p4-skip-p
+    type: optional
+    label: 'NO'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 1
+      dashed: true
+  - from: p4-match-u
+    to: p4-insert-u
+    type: primary
+    label: 'YES'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 2
+  - from: p4-match-u
+    to: p4-skip-u
+    type: optional
+    label: 'NO'
+    style:
+      strokeColor: '#e94560'
+      strokeWidth: 1
+      dashed: true

@@ -1,4 +1,5 @@
 import datetime
+import glob
 import json
 import re
 import asyncio
@@ -11,6 +12,9 @@ from display_device_parser import parse_display_device, compare_devices, format_
 from display_alarm_parser import parse_display_alarm_active, compare_alarms, format_alarm_suffix
 from filename_utils import sanitize_filename
 
+# --- Module-level caches ---
+_cached_limits = None
+_cached_abbrevs = None
 
 # --- Playwright browser path for frozen (.exe) mode ---
 def _setup_playwright_browsers_path():
@@ -77,26 +81,39 @@ def load_limits(config_path: str = "run_config.json") -> dict:
         - max_line_length   (default: 130)
         - max_output_lines  (default: 70)
         - screenshot_width  (default: 1000)
+        - font_size         (default: 6)
+        - line_height       (default: 1.3)
+        - workers           (default: 4)
+        - batch_size        (default: 25)
 
     Invalid or missing keys print a WARNING and fall back to defaults.
     Missing file is silent (no warning) and uses defaults.
+    Results are cached after first call.
     """
+    global _cached_limits
+    if _cached_limits is not None:
+        return _cached_limits
+
     defaults = {
         "max_line_length": _DEFAULT_MAX_LINE_LENGTH,
         "max_output_lines": _DEFAULT_MAX_OUTPUT_LINES,
         "screenshot_width": 1000,
         "font_size": 6,
         "line_height": 1.3,
+        "workers": 4,
+        "batch_size": 25,
     }
     if not os.path.exists(config_path):
-        return defaults
+        _cached_limits = defaults
+        return _cached_limits
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
     except Exception:
         print(f"WARNING: Failed to read {config_path}; using default limits.")
-        return defaults
+        _cached_limits = defaults
+        return _cached_limits
 
     resolved = {}
     for key, default in defaults.items():
@@ -115,6 +132,13 @@ def load_limits(config_path: str = "run_config.json") -> dict:
                 print(f"WARNING: Invalid value for '{key}' in {config_path} "
                       f"(got {value!r}, expected positive number); using default {default}.")
                 resolved[key] = default
+        elif key in ("workers", "batch_size"):
+            if isinstance(value, int) and value > 0:
+                resolved[key] = value
+            else:
+                print(f"WARNING: Invalid value for '{key}' in {config_path} "
+                      f"(got {value!r}, expected positive integer); using default {default}.")
+                resolved[key] = default
         else:
             if isinstance(value, int) and value > 0:
                 resolved[key] = value
@@ -122,7 +146,30 @@ def load_limits(config_path: str = "run_config.json") -> dict:
                 print(f"WARNING: Invalid value for '{key}' in {config_path} "
                       f"(got {value!r}, expected positive integer); using default {default}.")
                 resolved[key] = default
+
+    # Cap workers at os.cpu_count() * 2
+    cpu_count = os.cpu_count() or 1
+    cpu_max = cpu_count * 2
+    if resolved["workers"] > cpu_max:
+        print(f"WARNING: 'workers' ({resolved['workers']}) exceeds "
+              f"os.cpu_count()*2 ({cpu_max}); capping to {cpu_max}.")
+        resolved["workers"] = cpu_max
+
+    # Cap batch_size at 100
+    if resolved["batch_size"] > 100:
+        print(f"WARNING: 'batch_size' ({resolved['batch_size']}) exceeds "
+              f"max 100; capping to 100.")
+        resolved["batch_size"] = 100
+
+    _cached_limits = resolved
     return resolved
+
+
+def reset_caches():
+    """Reset all module-level caches. Useful for testing."""
+    global _cached_limits, _cached_abbrevs
+    _cached_limits = None
+    _cached_abbrevs = None
 
 
 def _has_error_in_output(output_text: str) -> bool:
@@ -539,30 +586,37 @@ def _extract_device_name(prompt: str) -> str:
 
 
 def _load_abbreviations():
-    """Load abbreviation list from JSON file.
+    """Load abbreviation list from JSON file (cached after first call).
 
     JSON format: {"abbreviations": {"full_command": ["abbr1", "abbr2"]}}
-    Returns flat list of (abbrev, full) tuples sorted longest-first.
+    Returns list of (compiled_pattern, full) tuples sorted longest-first.
     """
+    global _cached_abbrevs
+    if _cached_abbrevs is not None:
+        return _cached_abbrevs
+
     abb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "abbreviations.json")
     if not os.path.exists(abb_path):
-        return []
+        _cached_abbrevs = []
+        return _cached_abbrevs
     with open(abb_path, "r", encoding="utf-8-sig") as f:
         data = json.load(f).get("abbreviations", {})
     result = []
     for full, abbrevs in data.items():
         for abbrev in abbrevs:
             result.append((abbrev, full))
-    return sorted(result, key=lambda x: len(x[0]), reverse=True)
+    result.sort(key=lambda x: len(x[0]), reverse=True)
+    _cached_abbrevs = [
+        (re.compile(r"(^|\s)" + re.escape(abbrev) + r"($|\s)", re.IGNORECASE), full)
+        for abbrev, full in result
+    ]
+    return _cached_abbrevs
 
 
 def _expand_abbreviation(text, abbrev_list):
-    """Expand abbreviations in text (longest-first)."""
+    """Expand abbreviations in text using pre-compiled patterns (longest-first)."""
     expanded = text
-    for abbrev, full in abbrev_list:
-        pattern = re.compile(
-            r"(^|\s)" + re.escape(abbrev) + r"($|\s)", re.IGNORECASE
-        )
+    for pattern, full in abbrev_list:
         expanded = pattern.sub(r"\1" + full + r"\2", expanded)
     return expanded
 
@@ -760,13 +814,23 @@ async def generate_screenshots(grouped_segments: list[list[dict]], output_dir: s
     return results
 
 
-def _write_truncated_log(output_dir: str):
-    """Write truncated commands to a text file and full-output .txt files if any exist."""
+def _write_truncated_log(output_dir: str, suffix: str = ""):
+    """Write truncated commands to a text file and full-output .txt files if any exist.
+
+    Parameters
+    ----------
+    output_dir : str
+        Directory to write log files.
+    suffix : str
+        When empty (default), writes to ``truncated_commands.log``.
+        When non-empty (e.g. ``"w1"``), writes to ``truncated_commands_w1.log``.
+    """
     global _truncated_commands_log
     if not _truncated_commands_log:
         return
 
-    log_path = os.path.join(output_dir, 'truncated_commands.log')
+    log_filename = f"truncated_commands_{suffix}.log" if suffix else "truncated_commands.log"
+    log_path = os.path.join(output_dir, log_filename)
     mode = 'a' if os.path.exists(log_path) else 'w'
     with open(log_path, mode, encoding='utf-8') as f:
         if mode == 'w':
@@ -795,6 +859,98 @@ def _write_truncated_log(output_dir: str):
         print(f"  Full output saved to: {txt_path}")
 
     _truncated_commands_log = []  # Clear after writing
+
+
+async def generate_screenshots_batched(
+    file_list: list[tuple[str, str]],
+    output_dir: str,
+    whitelist: list[str] | None = None,
+    batch_size: int | None = None,
+    worker_id: str = "",
+) -> list[dict]:
+    """Parse multiple log files and render screenshots in batched browser sessions.
+
+    Parses all files upfront, collects every group into one flat list, then splits
+    into chunks of *batch_size*.  Each chunk gets its own browser session (launch
+    → render → close) so memory is bounded and the browser stays responsive.
+
+    Parameters
+    ----------
+    file_list : list[tuple[str, str]]
+        List of ``(log_content, log_name)`` tuples.
+    output_dir : str
+        Directory to write PNG screenshots and truncated-command logs.
+    whitelist : list[str] | None
+        If provided, only groups containing at least one of these commands
+        (exact, case-insensitive match) will be rendered to PNG.
+    batch_size : int | None
+        Number of groups per browser session.  If *None*, reads
+        ``load_limits()["batch_size"]`` (default 25).
+    worker_id : str
+        When non-empty, per-batch truncated logs are written to
+        ``truncated_commands_{worker_id}.log`` instead of the default
+        ``truncated_commands.log``.  Call ``aggregate_truncated_logs()``
+        afterwards to merge them.
+
+    Returns
+    -------
+    list[dict]
+        Aggregated screenshot results (same shape as ``generate_screenshots``).
+    """
+    # --- Parse ALL files into one flat list of groups ---
+    all_groups: list[list[dict]] = []
+    for _log_content, _log_name in file_list:
+        groups = parse_log(_log_content, whitelist)
+        if whitelist:
+            groups = _filter_groups_by_whitelist(groups, whitelist)
+        all_groups.extend(groups)
+
+    if not all_groups:
+        print("⚠ No segments found in any log file.")
+        return []
+
+    # --- Determine batch size ---
+    if batch_size is None:
+        batch_size = load_limits()["batch_size"]
+    if batch_size < 1:
+        batch_size = 1
+
+    total_batches = (len(all_groups) + batch_size - 1) // batch_size
+    all_results: list[dict] = []
+
+    for batch_idx in range(0, len(all_groups), batch_size):
+        chunk = all_groups[batch_idx:batch_idx + batch_size]
+        batch_num = batch_idx // batch_size + 1
+
+        results = await generate_screenshots(chunk, output_dir)
+        all_results.extend(results)
+
+        # Per-worker truncated-log handling:
+        # generate_screenshots() already wrote truncated_commands.log (default)
+        # and cleared the global.  If worker_id is set, rename that file so
+        # each worker keeps its own truncated log.
+        if worker_id:
+            default_log = os.path.join(output_dir, "truncated_commands.log")
+            worker_log = os.path.join(output_dir, f"truncated_commands_{worker_id}.log")
+            if os.path.exists(default_log):
+                if os.path.exists(worker_log):
+                    # Append to existing worker log
+                    with open(worker_log, "a", encoding="utf-8") as wf:
+                        with open(default_log, "r", encoding="utf-8") as df:
+                            wf.write(df.read())
+                    os.remove(default_log)
+                else:
+                    os.rename(default_log, worker_log)
+
+        # Satisfy the integration contract — global is already empty, so no-op.
+        _write_truncated_log(output_dir, suffix=worker_id)
+
+        print(
+            f"[Batch {batch_num}/{total_batches}] "
+            f"{len(results)} screenshots"
+        )
+
+    return all_results
 
 
 def process_network_logs(log_content: str, output_dir: str = ".", whitelist: list[str] | None = None) -> list[dict]:
@@ -837,6 +993,42 @@ def process_network_logs(log_content: str, output_dir: str = ".", whitelist: lis
             return future.result()
     else:
         return asyncio.run(generate_screenshots(segments, output_dir))
+
+
+def aggregate_truncated_logs(output_dir: str) -> None:
+    """Merge per-worker ``truncated_commands_*.log`` files into one unified log.
+
+    Globs ``truncated_commands_*.log`` in *output_dir*, concatenates their
+    contents into ``truncated_commands.log``, then deletes the individual
+    per-worker files.  If no ``_*.log`` files exist the function does nothing.
+
+    Parameters
+    ----------
+    output_dir : str
+        Directory containing the per-worker and target log files.
+    """
+    pattern = os.path.join(output_dir, "truncated_commands_*.log")
+    worker_logs = sorted(glob.glob(pattern))
+    if not worker_logs:
+        return
+
+    master_path = os.path.join(output_dir, "truncated_commands.log")
+    with open(master_path, "w", encoding="utf-8") as master:
+        master.write("# Truncated Commands Log (aggregated)\n")
+        master.write(
+            f"# Aggregated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        )
+        master.write(f"# Source files: {len(worker_logs)}\n\n")
+
+        for worker_log in worker_logs:
+            with open(worker_log, "r", encoding="utf-8") as wf:
+                master.write(wf.read())
+            master.write("\n")
+            os.remove(worker_log)
+
+    print(
+        f"\nAggregated {len(worker_logs)} truncated log(s) into {master_path}"
+    )
 
 
 if __name__ == "__main__":

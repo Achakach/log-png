@@ -2,7 +2,11 @@
   "logs_dir": "logs",
   "output_dir": "screenshots",
   "whitelist": [],
+  "font_size": 6,
+  "line_height": 1.3,
   "max_line_length": 130,
   "max_output_lines": 70,
-  "screenshot_width": 1000
+  "screenshot_width": 1000,
+  "workers": 4,
+  "batch_size": 25
 }

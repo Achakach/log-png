@@ -1,0 +1,447 @@
+{
+  "version": 1,
+  "title": "Huawei VRP Log Processing Pipeline",
+  "type": "module-diagram",
+  "source": "generated",
+  "profile": "default",
+  "theme": "dark",
+  "layout": "horizontal",
+  "counts": {
+    "nodes": 30,
+    "edges": 31,
+    "modules": 4
+  },
+  "nodes": [
+    {
+      "id": "p1-start",
+      "label": "logs/*.txt",
+      "type": "terminal",
+      "module": "phase1",
+      "size": "medium"
+    },
+    {
+      "id": "p1-has-prompt",
+      "label": "Has Router\nprompt?",
+      "type": "decision",
+      "module": "phase1",
+      "size": "medium"
+    },
+    {
+      "id": "p1-skip",
+      "label": "Skip",
+      "type": "terminal",
+      "module": "phase1",
+      "size": "small"
+    },
+    {
+      "id": "p1-split",
+      "label": "Split into\nsegments",
+      "type": "process",
+      "module": "phase1",
+      "size": "medium"
+    },
+    {
+      "id": "p1-output",
+      "label": "segments list\n[{prompt, cmd, output}]",
+      "type": "document",
+      "module": "phase1",
+      "size": "large"
+    },
+    {
+      "id": "p2-deeper",
+      "label": "Command goes\ndeeper?",
+      "type": "decision",
+      "module": "phase2",
+      "size": "medium"
+    },
+    {
+      "id": "p2-standalone",
+      "label": "Standalone\n(1 cmd → 1 PNG)",
+      "type": "process",
+      "module": "phase2",
+      "size": "medium"
+    },
+    {
+      "id": "p2-nested",
+      "label": "Nested block\n(all cmds → 1 PNG)",
+      "type": "process",
+      "module": "phase2",
+      "size": "medium"
+    },
+    {
+      "id": "p2-eof",
+      "label": "EOF before\nquit?",
+      "type": "decision",
+      "module": "phase2",
+      "size": "medium"
+    },
+    {
+      "id": "p2-truncate",
+      "label": "Truncate",
+      "type": "process",
+      "module": "phase2",
+      "size": "small"
+    },
+    {
+      "id": "p2-full",
+      "label": "Full block",
+      "type": "process",
+      "module": "phase2",
+      "size": "small"
+    },
+    {
+      "id": "p2-output",
+      "label": "grouped segments\n→ P3",
+      "type": "document",
+      "module": "phase2",
+      "size": "medium"
+    },
+    {
+      "id": "p3-jinja",
+      "label": "Jinja2\nautoescape → HTML",
+      "type": "process",
+      "module": "phase3",
+      "size": "medium"
+    },
+    {
+      "id": "p3-playwright",
+      "label": "Playwright\npage.set_content()",
+      "type": "process",
+      "module": "phase3",
+      "size": "medium"
+    },
+    {
+      "id": "p3-capture",
+      "label": "Screenshot\n#capture-area",
+      "type": "process",
+      "module": "phase3",
+      "size": "medium"
+    },
+    {
+      "id": "p3-png",
+      "label": "PNG saved\n→ screenshots/",
+      "type": "document",
+      "module": "phase3",
+      "size": "medium"
+    },
+    {
+      "id": "p4-read",
+      "label": "Read DOCX\ncells",
+      "type": "process",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-block-type",
+      "label": "Block\ntype?",
+      "type": "decision",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-nested-match",
+      "label": "NESTED\ncontiguous subseq",
+      "type": "process",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-pool-match",
+      "label": "POOL\n(cmd pool)",
+      "type": "process",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-user-match",
+      "label": "USERNAME\n(noise, skip)",
+      "type": "process",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-match-n",
+      "label": "Found\nmatch?",
+      "type": "decision",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-match-p",
+      "label": "Found\nmatch?",
+      "type": "decision",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-match-u",
+      "label": "Found\nmatch?",
+      "type": "decision",
+      "module": "phase4",
+      "size": "medium"
+    },
+    {
+      "id": "p4-insert-n",
+      "label": "Insert\n→ docx",
+      "type": "process",
+      "module": "phase4",
+      "size": "small"
+    },
+    {
+      "id": "p4-skip-n",
+      "label": "Skip",
+      "type": "terminal",
+      "module": "phase4",
+      "size": "small"
+    },
+    {
+      "id": "p4-insert-p",
+      "label": "Insert\n→ docx",
+      "type": "process",
+      "module": "phase4",
+      "size": "small"
+    },
+    {
+      "id": "p4-skip-p",
+      "label": "Skip",
+      "type": "terminal",
+      "module": "phase4",
+      "size": "small"
+    },
+    {
+      "id": "p4-insert-u",
+      "label": "Insert\n→ docx",
+      "type": "process",
+      "module": "phase4",
+      "size": "small"
+    },
+    {
+      "id": "p4-skip-u",
+      "label": "Skip",
+      "type": "terminal",
+      "module": "phase4",
+      "size": "small"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "from": "p1-start",
+      "to": "p1-has-prompt",
+      "type": "primary"
+    },
+    {
+      "id": "edge-2",
+      "from": "p1-has-prompt",
+      "to": "p1-split",
+      "type": "primary",
+      "label": "YES"
+    },
+    {
+      "id": "edge-3",
+      "from": "p1-has-prompt",
+      "to": "p1-skip",
+      "type": "optional",
+      "label": "NO"
+    },
+    {
+      "id": "edge-4",
+      "from": "p1-split",
+      "to": "p1-output",
+      "type": "primary"
+    },
+    {
+      "id": "edge-5",
+      "from": "p1-output",
+      "to": "p2-deeper",
+      "type": "primary"
+    },
+    {
+      "id": "edge-6",
+      "from": "p2-deeper",
+      "to": "p2-nested",
+      "type": "primary",
+      "label": "YES"
+    },
+    {
+      "id": "edge-7",
+      "from": "p2-deeper",
+      "to": "p2-standalone",
+      "type": "primary",
+      "label": "NO"
+    },
+    {
+      "id": "edge-8",
+      "from": "p2-nested",
+      "to": "p2-eof",
+      "type": "primary"
+    },
+    {
+      "id": "edge-9",
+      "from": "p2-eof",
+      "to": "p2-truncate",
+      "type": "primary",
+      "label": "YES"
+    },
+    {
+      "id": "edge-10",
+      "from": "p2-eof",
+      "to": "p2-full",
+      "type": "primary",
+      "label": "NO"
+    },
+    {
+      "id": "edge-11",
+      "from": "p2-standalone",
+      "to": "p2-output",
+      "type": "primary"
+    },
+    {
+      "id": "edge-12",
+      "from": "p2-truncate",
+      "to": "p2-output",
+      "type": "primary"
+    },
+    {
+      "id": "edge-13",
+      "from": "p2-full",
+      "to": "p2-output",
+      "type": "primary"
+    },
+    {
+      "id": "edge-14",
+      "from": "p2-output",
+      "to": "p3-jinja",
+      "type": "primary"
+    },
+    {
+      "id": "edge-15",
+      "from": "p3-jinja",
+      "to": "p3-playwright",
+      "type": "primary"
+    },
+    {
+      "id": "edge-16",
+      "from": "p3-playwright",
+      "to": "p3-capture",
+      "type": "primary"
+    },
+    {
+      "id": "edge-17",
+      "from": "p3-capture",
+      "to": "p3-png",
+      "type": "primary"
+    },
+    {
+      "id": "edge-18",
+      "from": "p3-png",
+      "to": "p4-read",
+      "type": "primary"
+    },
+    {
+      "id": "edge-19",
+      "from": "p4-read",
+      "to": "p4-block-type",
+      "type": "primary"
+    },
+    {
+      "id": "edge-20",
+      "from": "p4-block-type",
+      "to": "p4-nested-match",
+      "type": "primary",
+      "label": "NESTED"
+    },
+    {
+      "id": "edge-21",
+      "from": "p4-block-type",
+      "to": "p4-pool-match",
+      "type": "primary",
+      "label": "POOL"
+    },
+    {
+      "id": "edge-22",
+      "from": "p4-block-type",
+      "to": "p4-user-match",
+      "type": "primary",
+      "label": "USERNAME"
+    },
+    {
+      "id": "edge-23",
+      "from": "p4-nested-match",
+      "to": "p4-match-n",
+      "type": "primary"
+    },
+    {
+      "id": "edge-24",
+      "from": "p4-pool-match",
+      "to": "p4-match-p",
+      "type": "primary"
+    },
+    {
+      "id": "edge-25",
+      "from": "p4-user-match",
+      "to": "p4-match-u",
+      "type": "primary"
+    },
+    {
+      "id": "edge-26",
+      "from": "p4-match-n",
+      "to": "p4-insert-n",
+      "type": "primary",
+      "label": "YES"
+    },
+    {
+      "id": "edge-27",
+      "from": "p4-match-n",
+      "to": "p4-skip-n",
+      "type": "optional",
+      "label": "NO"
+    },
+    {
+      "id": "edge-28",
+      "from": "p4-match-p",
+      "to": "p4-insert-p",
+      "type": "primary",
+      "label": "YES"
+    },
+    {
+      "id": "edge-29",
+      "from": "p4-match-p",
+      "to": "p4-skip-p",
+      "type": "optional",
+      "label": "NO"
+    },
+    {
+      "id": "edge-30",
+      "from": "p4-match-u",
+      "to": "p4-insert-u",
+      "type": "primary",
+      "label": "YES"
+    },
+    {
+      "id": "edge-31",
+      "from": "p4-match-u",
+      "to": "p4-skip-u",
+      "type": "optional",
+      "label": "NO"
+    }
+  ],
+  "modules": [
+    {
+      "id": "phase1",
+      "label": "PHASE 1 — PARSE"
+    },
+    {
+      "id": "phase2",
+      "label": "PHASE 2 — GROUP"
+    },
+    {
+      "id": "phase3",
+      "label": "PHASE 3 — RENDER"
+    },
+    {
+      "id": "phase4",
+      "label": "PHASE 4 — INSERT"
+    }
+  ]
+}

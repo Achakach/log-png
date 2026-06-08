@@ -5,11 +5,11 @@ import re
 def sanitize_filename(name: str, max_length: int = 200) -> str:
     """Strip invalid filename characters. Preserve spaces and hyphens.
 
-    Replaces / with _, | with space, $, [, ] with _.
+    Replaces /, # with _, | with space, $, [, ] with _.
     Collapses runs of spaces/underscores.
     Returns 'unnamed' for empty input.
     """
-    result = re.sub(r'[\\/*?:"<>\n\r\t]', '_', name)
+    result = re.sub(r'[\\/*?:"<>\n\r\t#]', '_', name)
     result = result.replace('|', ' ').replace('$', '_').replace('[', '_').replace(']', '_')
     result = re.sub(r'\s+', ' ', result)       # collapse spaces
     result = re.sub(r'_+', '_', result)        # collapse underscores

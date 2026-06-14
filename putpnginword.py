@@ -133,7 +133,7 @@ def _load_abbreviations():
     JSON format: {"abbreviations": {"full_command": ["abbr1", "abbr2"]}}
     Returns flat list of (abbrev, full) tuples sorted longest-first.
     """
-    abb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "abbreviations.json")
+    abb_path = os.path.join(get_base_dir(), "abbreviations.json")
     if not os.path.exists(abb_path):
         return []
     try:
@@ -148,19 +148,7 @@ def _load_abbreviations():
     return sorted(result, key=lambda x: len(x[0]), reverse=True)
 
 
-# Fallback abbreviations if JSON file is missing
-_FALLBACK_ABBREVIATIONS = [
-    ('dis th', 'display this'),
-    ('dis cur', 'display current-configuration'),
-    ('dis cu', 'display current-configuration'),
-    ('dis', 'display'),
-    ('system', 'system-view'),
-    ('sys', 'system-view'),
-    ('comm', 'commit'),
-    ('q', 'quit'),
-]
-
-_ABBREVIATIONS = _load_abbreviations() or _FALLBACK_ABBREVIATIONS
+_ABBREVIATIONS = _load_abbreviations()
 
 
 def expand_abbreviations(commands: list[str]) -> list[str]:

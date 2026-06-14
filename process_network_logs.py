@@ -12,6 +12,14 @@ from display_device_parser import parse_display_device, compare_devices, format_
 from display_alarm_parser import parse_display_alarm_active, compare_alarms, format_alarm_suffix
 from filename_utils import sanitize_filename
 
+
+def get_base_dir():
+    """Get the directory where the .exe or .py script lives."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 # --- Module-level caches ---
 _cached_limits = None
 _cached_abbrevs = None
@@ -595,7 +603,7 @@ def _load_abbreviations():
     if _cached_abbrevs is not None:
         return _cached_abbrevs
 
-    abb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "abbreviations.json")
+    abb_path = os.path.join(get_base_dir(), "abbreviations.json")
     if not os.path.exists(abb_path):
         _cached_abbrevs = []
         return _cached_abbrevs

@@ -1,12 +1,6 @@
-﻿<!DOCTYPE html>
-<html>
-<head>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script>mermaid.initialize({startOnLoad: true, theme: "dark", securityLevel: "loose"});</script>
-    <style>body { background: #0d1117; display: flex; justify-content: center; padding: 40px; margin: 0; }</style>
-</head>
-<body>
-<div class="mermaid">
+﻿# Huawei VRP Log Processing Pipeline
+
+``mermaid
 flowchart LR
     subgraph P1["🔍 1. PARSE"]
         direction TB
@@ -94,6 +88,4 @@ flowchart LR
     style Z5 fill:#2d2d44,stroke:#f59e0b,color:#eee
     style Z6 fill:#2d2d44,stroke:#f59e0b,color:#eee
     style Z7 fill:#2d2d44,stroke:#f59e0b,color:#eee
-</div>
-</body>
-</html>
+``
